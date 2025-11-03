@@ -62,18 +62,162 @@ class RedditViewer {
         this.isLoading = true;
         this.showLoading();
 
+        const startTime = performance.now();
+
         try {
             const url = this.after
                 ? `https://www.reddit.com/r/${this.currentSubreddit}.json?limit=50&after=${this.after}`
                 : `https://www.reddit.com/r/${this.currentSubreddit}.json?limit=50`;
 
-            const response = await fetch(url);
+            console.log(`[FETCH] Requesting: ${url}`);
 
-            if (!response.ok) {
-                throw new Error(`Subreddit not found or unavailable`);
+            // Add timeout to fetch request
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+
+            let response;
+            try {
+                response = await fetch(url, {
+                    signal: controller.signal,
+                    headers: {
+                        'User-Agent': 'RedditTikTokViewer/1.0'
+                    }
+                });
+                clearTimeout(timeoutId);
+            } catch (fetchError) {
+                clearTimeout(timeoutId);
+
+                // Detect specific network error types
+                if (fetchError.name === 'AbortError') {
+                    const errorMsg = `[NETWORK TIMEOUT ERROR]\n` +
+                        `Request exceeded 15 second timeout\n` +
+                        `URL: ${url}\n` +
+                        `Subreddit: r/${this.currentSubreddit}\n` +
+                        `Possible causes: Slow network, server not responding, or rate limiting`;
+                    console.error(errorMsg);
+                    throw new Error(errorMsg);
+                } else if (fetchError.message.includes('Failed to fetch') || fetchError.message.includes('NetworkError')) {
+                    const errorMsg = `[NETWORK CONNECTION ERROR]\n` +
+                        `Failed to establish connection to Reddit API\n` +
+                        `Error: ${fetchError.message}\n` +
+                        `URL: ${url}\n` +
+                        `Possible causes:\n` +
+                        `  • CORS policy blocking request (check browser console)\n` +
+                        `  • No internet connection\n` +
+                        `  • Reddit servers are down\n` +
+                        `  • Firewall or proxy blocking request\n` +
+                        `  • DNS resolution failure`;
+                    console.error(errorMsg);
+                    throw new Error(errorMsg);
+                } else {
+                    throw fetchError;
+                }
             }
 
-            const data = await response.json();
+            const requestDuration = (performance.now() - startTime).toFixed(2);
+            console.log(`[FETCH] Response received in ${requestDuration}ms - Status: ${response.status} ${response.statusText}`);
+
+            // Detailed HTTP error handling
+            if (!response.ok) {
+                const errorDetails = {
+                    status: response.status,
+                    statusText: response.statusText,
+                    url: url,
+                    subreddit: this.currentSubreddit,
+                    headers: Object.fromEntries(response.headers.entries()),
+                    timestamp: new Date().toISOString()
+                };
+
+                let errorBody = '';
+                try {
+                    errorBody = await response.text();
+                    console.error('[HTTP ERROR] Response Body:', errorBody);
+                } catch (e) {
+                    console.error('[HTTP ERROR] Could not read response body');
+                }
+
+                let errorMessage = `[HTTP ${response.status} ERROR]\n`;
+
+                switch (response.status) {
+                    case 403:
+                        errorMessage += `FORBIDDEN - Access Denied\n` +
+                            `Subreddit: r/${this.currentSubreddit}\n` +
+                            `Possible causes:\n` +
+                            `  • Subreddit is private or restricted\n` +
+                            `  • API access blocked by Reddit\n` +
+                            `  • Rate limit exceeded (too many requests)\n` +
+                            `  • Geographic restrictions`;
+                        break;
+                    case 404:
+                        errorMessage += `NOT FOUND\n` +
+                            `Subreddit r/${this.currentSubreddit} does not exist\n` +
+                            `Check spelling and try again`;
+                        break;
+                    case 429:
+                        errorMessage += `RATE LIMIT EXCEEDED\n` +
+                            `Too many requests to Reddit API\n` +
+                            `Wait a few minutes before trying again\n` +
+                            `Rate-Limit Headers: ${JSON.stringify(errorDetails.headers['x-ratelimit-remaining'] || 'N/A')}`;
+                        break;
+                    case 500:
+                    case 502:
+                    case 503:
+                    case 504:
+                        errorMessage += `SERVER ERROR\n` +
+                            `Reddit's servers are experiencing issues\n` +
+                            `Status: ${response.status} ${response.statusText}\n` +
+                            `Try again in a few moments`;
+                        break;
+                    default:
+                        errorMessage += `${response.statusText}\n` +
+                            `Subreddit: r/${this.currentSubreddit}\n` +
+                            `URL: ${url}`;
+                }
+
+                errorMessage += `\n\nTechnical Details:\n` +
+                    `  Status Code: ${response.status}\n` +
+                    `  Status Text: ${response.statusText}\n` +
+                    `  Request Duration: ${requestDuration}ms\n` +
+                    `  Timestamp: ${errorDetails.timestamp}`;
+
+                console.error('[HTTP ERROR] Full Details:', errorDetails);
+                throw new Error(errorMessage);
+            }
+
+            // Parse JSON with error handling
+            let data;
+            try {
+                data = await response.json();
+                console.log(`[FETCH] JSON parsed successfully - Posts found: ${data.data?.children?.length || 0}`);
+            } catch (jsonError) {
+                const errorMsg = `[JSON PARSE ERROR]\n` +
+                    `Failed to parse Reddit API response\n` +
+                    `Error: ${jsonError.message}\n` +
+                    `URL: ${url}\n` +
+                    `Status: ${response.status}\n` +
+                    `Response may not be valid JSON\n` +
+                    `This could indicate:\n` +
+                    `  • Reddit API returned HTML instead of JSON\n` +
+                    `  • Response was corrupted during transmission\n` +
+                    `  • Unexpected API response format`;
+                console.error(errorMsg);
+                console.error('[JSON PARSE ERROR] First 500 chars of response:', await response.text().then(t => t.substring(0, 500)));
+                throw new Error(errorMsg);
+            }
+
+            // Validate response structure
+            if (!data.data || !data.data.children || !Array.isArray(data.data.children)) {
+                const errorMsg = `[API STRUCTURE ERROR]\n` +
+                    `Reddit API returned unexpected data structure\n` +
+                    `Expected: {data: {children: [...]}}\n` +
+                    `Received: ${JSON.stringify(data).substring(0, 200)}...\n` +
+                    `Subreddit: r/${this.currentSubreddit}\n` +
+                    `This indicates the Reddit API response format has changed`;
+                console.error(errorMsg);
+                console.error('[API STRUCTURE ERROR] Full response:', data);
+                throw new Error(errorMsg);
+            }
+
             this.after = data.data.after;
 
             // Filter media posts only
@@ -81,20 +225,34 @@ class RedditViewer {
                 .map(child => child.data)
                 .filter(post => this.isMediaPost(post));
 
+            console.log(`[FILTER] Total posts: ${data.data.children.length}, Media posts: ${mediaPosts.length}`);
+
             if (mediaPosts.length === 0) {
-                this.showError('No media posts found in this subreddit');
+                const errorMsg = `[NO MEDIA POSTS]\n` +
+                    `Subreddit r/${this.currentSubreddit} has no media content\n` +
+                    `Total posts found: ${data.data.children.length}\n` +
+                    `Media posts found: 0\n` +
+                    `This subreddit may only contain text posts or external links\n` +
+                    `Try a different subreddit with images/videos (e.g., pics, videos, gifs, aww)`;
+                console.warn(errorMsg);
+                this.showError(errorMsg);
                 this.hideLoading();
                 this.isLoading = false;
                 return;
             }
 
             this.posts = [...this.posts, ...mediaPosts];
+            console.log(`[SUCCESS] Total posts loaded: ${this.posts.length}`);
             this.renderPosts();
             this.hideLoading();
 
         } catch (error) {
-            console.error('Error fetching posts:', error);
-            this.showError(error.message);
+            const requestDuration = (performance.now() - startTime).toFixed(2);
+            console.error(`[FATAL ERROR] Request failed after ${requestDuration}ms:`, error);
+            console.error('[FATAL ERROR] Stack trace:', error.stack);
+
+            // Show detailed error to user
+            this.showError(error.message || `[UNKNOWN ERROR]\nAn unexpected error occurred\nCheck console for details`);
             this.hideLoading();
         }
 
@@ -205,7 +363,17 @@ class RedditViewer {
         // Play video when it becomes active
         video.addEventListener('loadeddata', () => {
             if (this.currentIndex === parseInt(video.closest('.post').id.split('-')[1])) {
-                video.play().catch(e => console.log('Video autoplay failed:', e));
+                video.play().catch(e => {
+                    console.error(`[VIDEO AUTOPLAY ERROR]\n` +
+                        `Error: ${e.name} - ${e.message}\n` +
+                        `Video Source: ${source.src}\n` +
+                        `Post Index: ${this.currentIndex}\n` +
+                        `Possible causes:\n` +
+                        `  • Browser autoplay policy (user interaction required)\n` +
+                        `  • Video codec not supported\n` +
+                        `  • CORS restrictions on video source\n` +
+                        `  • Video file corrupted or unavailable`);
+                });
             }
         });
 
@@ -370,7 +538,24 @@ class RedditViewer {
             const video = currentPost.querySelector('video');
             if (video) {
                 video.currentTime = 0;
-                video.play().catch(e => console.log('Video play failed:', e));
+                console.log(`[VIDEO] Attempting to play post ${this.currentIndex}`);
+                video.play().catch(e => {
+                    console.error(`[VIDEO PLAY ERROR]\n` +
+                        `Error: ${e.name} - ${e.message}\n` +
+                        `Post Index: ${this.currentIndex}\n` +
+                        `Video Source: ${video.src || video.querySelector('source')?.src || 'unknown'}\n` +
+                        `Video Ready State: ${video.readyState} (0=HAVE_NOTHING, 1=HAVE_METADATA, 2=HAVE_CURRENT_DATA, 3=HAVE_FUTURE_DATA, 4=HAVE_ENOUGH_DATA)\n` +
+                        `Video Network State: ${video.networkState} (0=NETWORK_EMPTY, 1=NETWORK_IDLE, 2=NETWORK_LOADING, 3=NETWORK_NO_SOURCE)\n` +
+                        `Video Duration: ${video.duration}s\n` +
+                        `Video Paused: ${video.paused}\n` +
+                        `Video Muted: ${video.muted}\n` +
+                        `Possible causes:\n` +
+                        `  • Browser autoplay policy blocking playback\n` +
+                        `  • Video not fully loaded (readyState < 3)\n` +
+                        `  • Video source URL invalid or inaccessible\n` +
+                        `  • CORS policy blocking video access\n` +
+                        `  • Video codec not supported by browser`);
+                });
             }
         }
     }
@@ -384,14 +569,74 @@ class RedditViewer {
     }
 
     showError(message) {
+        // Remove any existing error messages
+        const existingErrors = document.querySelectorAll('.error-message');
+        existingErrors.forEach(err => err.remove());
+
         const errorEl = document.createElement('div');
         errorEl.className = 'error-message';
-        errorEl.textContent = message;
+
+        // Create error content with formatting
+        const errorContent = document.createElement('div');
+        errorContent.className = 'error-content';
+
+        // Format the error message with proper line breaks and indentation
+        const formattedMessage = message
+            .split('\n')
+            .map(line => {
+                const trimmed = line.trim();
+                if (trimmed.startsWith('•')) {
+                    return `<div class="error-bullet">${this.escapeHtml(trimmed)}</div>`;
+                } else if (trimmed.includes(':')) {
+                    const [key, ...valueParts] = trimmed.split(':');
+                    const value = valueParts.join(':');
+                    return `<div class="error-line"><strong>${this.escapeHtml(key)}:</strong>${this.escapeHtml(value)}</div>`;
+                } else if (trimmed.startsWith('[') && trimmed.includes(']')) {
+                    return `<div class="error-header">${this.escapeHtml(trimmed)}</div>`;
+                } else if (trimmed) {
+                    return `<div class="error-line">${this.escapeHtml(trimmed)}</div>`;
+                }
+                return '';
+            })
+            .join('');
+
+        errorContent.innerHTML = formattedMessage;
+        errorEl.appendChild(errorContent);
+
+        // Add close button
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'error-close';
+        closeBtn.innerHTML = '×';
+        closeBtn.onclick = () => errorEl.remove();
+        errorEl.appendChild(closeBtn);
+
+        // Add copy button for technical details
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'error-copy';
+        copyBtn.innerHTML = '📋 Copy';
+        copyBtn.onclick = () => {
+            navigator.clipboard.writeText(message).then(() => {
+                copyBtn.innerHTML = '✓ Copied';
+                setTimeout(() => {
+                    copyBtn.innerHTML = '📋 Copy';
+                }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy to clipboard:', err);
+                copyBtn.innerHTML = '✗ Failed';
+            });
+        };
+        errorEl.appendChild(copyBtn);
+
         document.body.appendChild(errorEl);
 
+        console.error('[ERROR DISPLAYED TO USER]', message);
+
+        // Auto-dismiss after 15 seconds for better readability of technical errors
         setTimeout(() => {
-            errorEl.remove();
-        }, 3000);
+            if (errorEl.parentNode) {
+                errorEl.remove();
+            }
+        }, 15000);
     }
 
     escapeHtml(text) {

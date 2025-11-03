@@ -264,12 +264,114 @@ body {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    background: rgba(255, 68, 88, 0.9);
-    padding: 20px 30px;
-    border-radius: 15px;
-    text-align: center;
+    background: rgba(20, 20, 25, 0.98);
+    border: 2px solid rgba(255, 68, 88, 0.8);
+    padding: 25px;
+    border-radius: 12px;
     z-index: 150;
-    max-width: 80%;
+    max-width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    text-align: left;
+}
+
+.error-content {
+    color: #fff;
+    margin-bottom: 15px;
+}
+
+.error-header {
+    color: #ff4458;
+    font-weight: bold;
+    font-size: 15px;
+    margin: 10px 0 8px 0;
+    padding: 5px 0;
+    border-bottom: 1px solid rgba(255, 68, 88, 0.3);
+}
+
+.error-line {
+    margin: 4px 0;
+    color: #e0e0e0;
+}
+
+.error-line strong {
+    color: #ff8899;
+    display: inline-block;
+    min-width: 120px;
+}
+
+.error-bullet {
+    margin: 3px 0;
+    padding-left: 10px;
+    color: #c0c0c0;
+}
+
+.error-close {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: transparent;
+    border: none;
+    color: #fff;
+    font-size: 28px;
+    cursor: pointer;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    line-height: 30px;
+    text-align: center;
+    transition: color 0.2s;
+}
+
+.error-close:hover {
+    color: #ff4458;
+}
+
+.error-copy {
+    position: absolute;
+    bottom: 15px;
+    right: 15px;
+    background: rgba(255, 68, 88, 0.2);
+    border: 1px solid rgba(255, 68, 88, 0.5);
+    color: #fff;
+    padding: 8px 15px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s;
+    font-family: 'Courier New', monospace;
+}
+
+.error-copy:hover {
+    background: rgba(255, 68, 88, 0.4);
+    border-color: rgba(255, 68, 88, 0.8);
+}
+
+.error-copy:active {
+    transform: scale(0.95);
+}
+
+/* Scrollbar styling for error messages */
+.error-message::-webkit-scrollbar {
+    width: 8px;
+}
+
+.error-message::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 4px;
+}
+
+.error-message::-webkit-scrollbar-thumb {
+    background: rgba(255, 68, 88, 0.5);
+    border-radius: 4px;
+}
+
+.error-message::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 68, 88, 0.7);
 }
 
 /* Responsive adjustments */
