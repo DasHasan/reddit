@@ -1,1 +1,90 @@
-# reddit
+# TikTok-Style Reddit Media Viewer
+
+A mobile-first web app that displays Reddit media posts in a TikTok-like vertical scrolling interface.
+
+## Features
+
+- 📱 **Mobile-First Design** - Optimized for touch interactions and mobile devices
+- 🎥 **Media Only** - Displays images, videos, and gallery posts (filters out text posts)
+- 👆 **Swipe Navigation** - Vertical swipe up/down to navigate between posts
+- 🎬 **Auto-Playing Videos** - Videos auto-play with smooth transitions
+- 🖼️ **Gallery Support** - Horizontal swipe for gallery posts
+- ⚡ **Performance Optimized** - Lazy loading, DOM recycling, no external dependencies
+- 🔄 **Infinite Scroll** - Automatically loads more posts as you browse
+- 🎯 **Any Subreddit** - Enter any subreddit name to browse its media
+
+## Usage
+
+1. Open the app in your browser
+2. Enter a subreddit name (e.g., "pics", "videos", "aww")
+3. Click "Load" or press Enter
+4. Swipe up/down to navigate between posts
+5. Swipe left/right on gallery posts to view multiple images
+
+### Keyboard Navigation (Desktop)
+
+- ⬆️ Arrow Up - Previous post
+- ⬇️ Arrow Down - Next post
+
+## Tech Stack
+
+- Pure Vanilla JavaScript (no frameworks)
+- CSS3 with mobile-first responsive design
+- Reddit JSON API (no authentication required)
+
+## How It Works
+
+The app uses Reddit's public JSON API by appending `.json` to any subreddit URL:
+```
+https://www.reddit.com/r/{subreddit}.json
+```
+
+It filters posts to show only media content:
+- Images (direct links, i.redd.it, imgur)
+- Videos (Reddit hosted videos)
+- Gallery posts (multiple images)
+
+## Performance
+
+- **Lazy Loading** - Images/videos load only when needed
+- **DOM Recycling** - Removes posts that are far from the current view
+- **Minimal Dependencies** - No external libraries, pure vanilla JS
+- **Optimized Transitions** - Hardware-accelerated CSS transforms
+
+## GitHub Pages Deployment
+
+To deploy this to GitHub Pages:
+
+1. Go to your repository Settings
+2. Navigate to "Pages" in the sidebar
+3. Under "Source", select "GitHub Actions"
+4. The workflow will automatically deploy on push to the branch
+
+The site will be available at: `https://{username}.github.io/{repo-name}/`
+
+## Local Development
+
+Simply open `index.html` in a web browser, or use a local server:
+
+```bash
+# Using Python
+python -m http.server 8000
+
+# Using Node.js
+npx http-server
+
+# Using PHP
+php -S localhost:8000
+```
+
+Then visit `http://localhost:8000`
+
+## Browser Support
+
+- Modern mobile browsers (iOS Safari, Chrome, Firefox)
+- Desktop browsers with touch event support
+- Keyboard navigation for desktop testing
+
+## License
+
+MIT
