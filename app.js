@@ -18,10 +18,12 @@ class RedditViewer {
         this.loading = document.getElementById('loading');
         this.subredditInput = document.getElementById('subredditName');
         this.loadBtn = document.getElementById('loadBtn');
+        this.testBtn = document.getElementById('testBtn');
         this.navHint = document.getElementById('navHint');
 
         // Event listeners
         this.loadBtn.addEventListener('click', () => this.loadSubreddit());
+        this.testBtn.addEventListener('click', () => this.testConnection());
         this.subredditInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') this.loadSubreddit();
         });
@@ -54,6 +56,234 @@ class RedditViewer {
         this.container.innerHTML = '';
 
         await this.fetchPosts();
+    }
+
+    async testConnection() {
+        console.log('[CONNECTION TEST] Starting comprehensive connection diagnostics...');
+
+        const results = {
+            timestamp: new Date().toISOString(),
+            userAgent: navigator.userAgent,
+            online: navigator.onLine,
+            tests: []
+        };
+
+        // Show loading
+        this.showLoading();
+        this.testBtn.disabled = true;
+        this.testBtn.textContent = '🔄 Testing...';
+
+        let report = `[CONNECTION DIAGNOSTIC REPORT]\n`;
+        report += `Timestamp: ${results.timestamp}\n`;
+        report += `Browser Online Status: ${results.online ? '✓ ONLINE' : '✗ OFFLINE'}\n`;
+        report += `User Agent: ${navigator.userAgent}\n`;
+        report += `Current URL: ${window.location.href}\n`;
+        report += `Protocol: ${window.location.protocol}\n\n`;
+
+        // Test 1: Basic Internet Connectivity (using a reliable public API)
+        report += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+        report += `TEST 1: Basic Internet Connectivity\n`;
+        report += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+
+        try {
+            const startTime = performance.now();
+            const testResponse = await fetch('https://www.reddit.com/api/v1/user/nobody/about.json', {
+                method: 'GET',
+                signal: AbortSignal.timeout(10000)
+            });
+            const duration = (performance.now() - startTime).toFixed(2);
+
+            report += `Status: ✓ PASS\n`;
+            report += `Latency: ${duration}ms\n`;
+            report += `HTTP Status: ${testResponse.status} ${testResponse.statusText}\n`;
+            results.tests.push({ name: 'Internet Connectivity', status: 'PASS', latency: duration });
+            console.log(`[CONNECTION TEST] Internet connectivity: PASS (${duration}ms)`);
+        } catch (error) {
+            report += `Status: ✗ FAIL\n`;
+            report += `Error: ${error.name} - ${error.message}\n`;
+            report += `Details: Cannot reach Reddit servers\n`;
+            report += `Possible causes:\n`;
+            report += `  • No internet connection\n`;
+            report += `  • Firewall blocking HTTPS traffic\n`;
+            report += `  • DNS resolution failure\n`;
+            results.tests.push({ name: 'Internet Connectivity', status: 'FAIL', error: error.message });
+            console.error('[CONNECTION TEST] Internet connectivity: FAIL', error);
+        }
+
+        // Test 2: Reddit API Endpoint Access
+        report += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+        report += `TEST 2: Reddit API Endpoint Access\n`;
+        report += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+
+        const testUrl = 'https://www.reddit.com/r/test.json?limit=1';
+        report += `Endpoint: ${testUrl}\n`;
+
+        try {
+            const startTime = performance.now();
+            const apiResponse = await fetch(testUrl, {
+                method: 'GET',
+                headers: {
+                    'User-Agent': 'RedditTikTokViewer/1.0'
+                },
+                signal: AbortSignal.timeout(15000)
+            });
+            const duration = (performance.now() - startTime).toFixed(2);
+
+            report += `Status: ✓ PASS\n`;
+            report += `HTTP Status: ${apiResponse.status} ${apiResponse.statusText}\n`;
+            report += `Latency: ${duration}ms\n`;
+            report += `Content-Type: ${apiResponse.headers.get('content-type')}\n`;
+            report += `CORS Headers:\n`;
+            report += `  • Access-Control-Allow-Origin: ${apiResponse.headers.get('access-control-allow-origin') || 'NOT SET'}\n`;
+            report += `  • Access-Control-Allow-Methods: ${apiResponse.headers.get('access-control-allow-methods') || 'NOT SET'}\n`;
+
+            // Test JSON parsing
+            try {
+                const data = await apiResponse.json();
+                if (data.data && data.data.children) {
+                    report += `JSON Parsing: ✓ Valid Reddit API Response\n`;
+                    report += `Posts Returned: ${data.data.children.length}\n`;
+                    results.tests.push({
+                        name: 'Reddit API Access',
+                        status: 'PASS',
+                        latency: duration,
+                        httpStatus: apiResponse.status
+                    });
+                } else {
+                    report += `JSON Parsing: ✗ Unexpected response structure\n`;
+                    results.tests.push({
+                        name: 'Reddit API Access',
+                        status: 'PARTIAL',
+                        latency: duration,
+                        httpStatus: apiResponse.status,
+                        issue: 'Unexpected response structure'
+                    });
+                }
+            } catch (jsonError) {
+                report += `JSON Parsing: ✗ FAIL - ${jsonError.message}\n`;
+                results.tests.push({
+                    name: 'Reddit API Access',
+                    status: 'PARTIAL',
+                    latency: duration,
+                    httpStatus: apiResponse.status,
+                    issue: 'JSON parsing failed'
+                });
+            }
+
+            console.log(`[CONNECTION TEST] Reddit API access: PASS (${duration}ms)`);
+        } catch (error) {
+            report += `Status: ✗ FAIL\n`;
+            report += `Error Type: ${error.name}\n`;
+            report += `Error Message: ${error.message}\n`;
+
+            // Detailed error diagnosis
+            if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+                report += `\nDiagnosis: CORS POLICY VIOLATION\n`;
+                report += `The Reddit API is blocking requests from your origin.\n`;
+                report += `\nCurrent Origin: ${window.location.origin}\n`;
+                report += `\nThis is a known issue when:\n`;
+                report += `  • Running from file:// protocol\n`;
+                report += `  • Running from certain domains without CORS headers\n`;
+                report += `  • Browser extensions blocking requests\n`;
+                report += `  • Corporate firewall/proxy interference\n`;
+                report += `\nSOLUTION:\n`;
+                report += `  1. Use a CORS proxy (e.g., cors-anywhere)\n`;
+                report += `  2. Run from localhost with a local server\n`;
+                report += `  3. Use Reddit's official API with OAuth\n`;
+                report += `  4. Deploy to a domain with CORS enabled\n`;
+            } else if (error.name === 'AbortError') {
+                report += `\nDiagnosis: REQUEST TIMEOUT\n`;
+                report += `The request took longer than 15 seconds.\n`;
+                report += `Possible causes:\n`;
+                report += `  • Very slow internet connection\n`;
+                report += `  • Reddit servers not responding\n`;
+                report += `  • Network congestion\n`;
+            } else {
+                report += `\nDiagnosis: NETWORK ERROR\n`;
+                report += `Could not establish connection to Reddit API.\n`;
+            }
+
+            results.tests.push({
+                name: 'Reddit API Access',
+                status: 'FAIL',
+                error: error.message,
+                errorType: error.name
+            });
+            console.error('[CONNECTION TEST] Reddit API access: FAIL', error);
+        }
+
+        // Test 3: Browser Capabilities
+        report += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+        report += `TEST 3: Browser Capabilities\n`;
+        report += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+
+        const capabilities = {
+            fetch: typeof fetch !== 'undefined',
+            abortController: typeof AbortController !== 'undefined',
+            performanceAPI: typeof performance !== 'undefined',
+            localStorage: typeof localStorage !== 'undefined',
+            sessionStorage: typeof sessionStorage !== 'undefined',
+        };
+
+        Object.entries(capabilities).forEach(([feature, supported]) => {
+            report += `${feature}: ${supported ? '✓ Supported' : '✗ Not Supported'}\n`;
+        });
+
+        results.browserCapabilities = capabilities;
+
+        // Test 4: Network Information (if available)
+        if (navigator.connection || navigator.mozConnection || navigator.webkitConnection) {
+            report += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+            report += `TEST 4: Network Information\n`;
+            report += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+
+            const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+            report += `Effective Type: ${connection.effectiveType || 'Unknown'}\n`;
+            report += `Downlink: ${connection.downlink || 'Unknown'} Mbps\n`;
+            report += `RTT: ${connection.rtt || 'Unknown'} ms\n`;
+            report += `Save Data: ${connection.saveData ? 'Enabled' : 'Disabled'}\n`;
+
+            results.networkInfo = {
+                effectiveType: connection.effectiveType,
+                downlink: connection.downlink,
+                rtt: connection.rtt,
+                saveData: connection.saveData
+            };
+        }
+
+        // Summary
+        report += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+        report += `SUMMARY\n`;
+        report += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+
+        const passCount = results.tests.filter(t => t.status === 'PASS').length;
+        const failCount = results.tests.filter(t => t.status === 'FAIL').length;
+        const totalTests = results.tests.length;
+
+        report += `Total Tests: ${totalTests}\n`;
+        report += `Passed: ${passCount}\n`;
+        report += `Failed: ${failCount}\n`;
+
+        if (failCount === 0) {
+            report += `\nOverall Status: ✓ ALL TESTS PASSED\n`;
+            report += `Connection to Reddit API is working properly!\n`;
+        } else {
+            report += `\nOverall Status: ✗ ISSUES DETECTED\n`;
+            report += `Please review the failed tests above for details.\n`;
+        }
+
+        // Log full results to console
+        console.log('[CONNECTION TEST] Full results:', results);
+        console.log('[CONNECTION TEST] Report:\n' + report);
+
+        // Show results to user
+        this.hideLoading();
+        this.testBtn.disabled = false;
+        this.testBtn.textContent = '🔧 Test Connection';
+
+        this.showError(report, null);
+
+        return results;
     }
 
     async fetchPosts() {
