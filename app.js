@@ -251,8 +251,9 @@ class RedditViewer {
             console.error(`[FATAL ERROR] Request failed after ${requestDuration}ms:`, error);
             console.error('[FATAL ERROR] Stack trace:', error.stack);
 
-            // Show detailed error to user
-            this.showError(error.message || `[UNKNOWN ERROR]\nAn unexpected error occurred\nCheck console for details`);
+            // Show detailed error to user with stack trace
+            const errorMessage = error.message || `[UNKNOWN ERROR]\nAn unexpected error occurred\nCheck console for details`;
+            this.showError(errorMessage, error.stack);
             this.hideLoading();
         }
 
@@ -568,7 +569,7 @@ class RedditViewer {
         this.loading.classList.remove('active');
     }
 
-    showError(message) {
+    showError(message, stackTrace = null) {
         // Remove any existing error messages
         const existingErrors = document.querySelectorAll('.error-message');
         existingErrors.forEach(err => err.remove());
@@ -601,6 +602,45 @@ class RedditViewer {
             .join('');
 
         errorContent.innerHTML = formattedMessage;
+
+        // Add stack trace if provided
+        if (stackTrace) {
+            const stackHeader = document.createElement('div');
+            stackHeader.className = 'error-header';
+            stackHeader.style.marginTop = '15px';
+            stackHeader.textContent = 'STACK TRACE';
+            errorContent.appendChild(stackHeader);
+
+            const stackContainer = document.createElement('div');
+            stackContainer.className = 'error-stack';
+
+            // Format stack trace with line numbers
+            const stackLines = stackTrace.split('\n');
+            stackLines.forEach((line, index) => {
+                const stackLine = document.createElement('div');
+                stackLine.className = 'error-stack-line';
+
+                // Highlight function names and file paths
+                let formattedLine = this.escapeHtml(line);
+
+                // Highlight "at" keyword
+                formattedLine = formattedLine.replace(/at /g, '<span class="stack-at">at</span> ');
+
+                // Highlight function names (text before parentheses)
+                formattedLine = formattedLine.replace(/at <span class="stack-at">at<\/span> ([^\s(]+)/g,
+                    'at <span class="stack-at">at</span> <span class="stack-function">$1</span>');
+
+                // Highlight file paths and line numbers
+                formattedLine = formattedLine.replace(/\(([^)]+):(\d+):(\d+)\)/g,
+                    '(<span class="stack-file">$1:<span class="stack-linenum">$2:$3</span></span>)');
+
+                stackLine.innerHTML = `<span class="stack-linenum">${(index + 1).toString().padStart(2, '0')}</span> ${formattedLine}`;
+                stackContainer.appendChild(stackLine);
+            });
+
+            errorContent.appendChild(stackContainer);
+        }
+
         errorEl.appendChild(errorContent);
 
         // Add close button
@@ -610,12 +650,15 @@ class RedditViewer {
         closeBtn.onclick = () => errorEl.remove();
         errorEl.appendChild(closeBtn);
 
+        // Prepare full text for copying (including stack trace)
+        const fullErrorText = stackTrace ? `${message}\n\nSTACK TRACE:\n${stackTrace}` : message;
+
         // Add copy button for technical details
         const copyBtn = document.createElement('button');
         copyBtn.className = 'error-copy';
         copyBtn.innerHTML = '📋 Copy';
         copyBtn.onclick = () => {
-            navigator.clipboard.writeText(message).then(() => {
+            navigator.clipboard.writeText(fullErrorText).then(() => {
                 copyBtn.innerHTML = '✓ Copied';
                 setTimeout(() => {
                     copyBtn.innerHTML = '📋 Copy';
@@ -630,13 +673,16 @@ class RedditViewer {
         document.body.appendChild(errorEl);
 
         console.error('[ERROR DISPLAYED TO USER]', message);
+        if (stackTrace) {
+            console.error('[STACK TRACE]', stackTrace);
+        }
 
-        // Auto-dismiss after 15 seconds for better readability of technical errors
+        // Auto-dismiss after 20 seconds for stack traces (up from 15s)
         setTimeout(() => {
             if (errorEl.parentNode) {
                 errorEl.remove();
             }
-        }, 15000);
+        }, stackTrace ? 20000 : 15000);
     }
 
     escapeHtml(text) {

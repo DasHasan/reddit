@@ -355,6 +355,45 @@ body {
     transform: scale(0.95);
 }
 
+/* Stack trace styling */
+.error-stack {
+    background: rgba(0, 0, 0, 0.4);
+    border-left: 3px solid rgba(255, 68, 88, 0.5);
+    padding: 10px;
+    margin-top: 10px;
+    margin-bottom: 40px;
+    border-radius: 4px;
+    font-size: 12px;
+    overflow-x: auto;
+}
+
+.error-stack-line {
+    margin: 2px 0;
+    color: #d0d0d0;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.error-stack-line .stack-linenum {
+    color: #666;
+    margin-right: 8px;
+    user-select: none;
+}
+
+.error-stack-line .stack-at {
+    color: #ff6b6b;
+    font-weight: bold;
+}
+
+.error-stack-line .stack-function {
+    color: #4dabf7;
+    font-weight: bold;
+}
+
+.error-stack-line .stack-file {
+    color: #51cf66;
+}
+
 /* Scrollbar styling for error messages */
 .error-message::-webkit-scrollbar {
     width: 8px;
@@ -371,6 +410,25 @@ body {
 }
 
 .error-message::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 68, 88, 0.7);
+}
+
+/* Stack trace horizontal scrollbar */
+.error-stack::-webkit-scrollbar {
+    height: 6px;
+}
+
+.error-stack::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 3px;
+}
+
+.error-stack::-webkit-scrollbar-thumb {
+    background: rgba(255, 68, 88, 0.5);
+    border-radius: 3px;
+}
+
+.error-stack::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 68, 88, 0.7);
 }
 
