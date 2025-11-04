@@ -7,6 +7,8 @@ class RedditViewer {
         this.isAnimating = false; // Prevent multiple swipes during animation
         this.touchStartY = 0;
         this.touchEndY = 0;
+        this.touchStartX = 0;
+        this.touchEndX = 0;
         this.currentSubreddit = 'pics';
         this.after = null; // For pagination
         this.animationDuration = 300; // Match CSS animation duration
@@ -315,8 +317,17 @@ class RedditViewer {
 
     createPostElement(post, index) {
         const postEl = document.createElement('div');
-        postEl.className = 'post';
         postEl.id = `post-${index}`;
+
+        // Set initial position based on index relative to currentIndex
+        // Important: Set class BEFORE adding to DOM to avoid flash
+        if (index === this.currentIndex) {
+            postEl.className = 'post active';
+        } else if (index < this.currentIndex) {
+            postEl.className = 'post prev';
+        } else {
+            postEl.className = 'post next';
+        }
 
         // Create media wrapper
         const mediaWrapper = document.createElement('div');
@@ -347,6 +358,7 @@ class RedditViewer {
         postEl.appendChild(postInfo);
 
         this.container.appendChild(postEl);
+        console.log(`[CREATE] Post ${index} created with class: ${postEl.className}`);
     }
 
     createImage(post) {
@@ -480,162 +492,176 @@ class RedditViewer {
 
     handleTouchStart(e) {
         this.touchStartY = e.touches[0].clientY;
+        this.touchStartX = e.touches[0].clientX;
+        console.log(`[TOUCH] Start - Y: ${this.touchStartY.toFixed(0)}`);
     }
 
     handleTouchEnd(e) {
         this.touchEndY = e.changedTouches[0].clientY;
+        this.touchEndX = e.changedTouches[0].clientX;
+        console.log(`[TOUCH] End - Y: ${this.touchEndY.toFixed(0)}`);
         this.handleSwipe();
     }
 
     handleSwipe() {
-        // Prevent swipes during animation
         if (this.isAnimating) {
             console.log('[SWIPE] Blocked - animation in progress');
             return;
         }
 
-        const swipeDistance = this.touchStartY - this.touchEndY;
+        const swipeDistanceY = this.touchStartY - this.touchEndY;
+        const swipeDistanceX = Math.abs(this.touchStartX - this.touchEndX);
         const minSwipeDistance = 50;
 
-        if (Math.abs(swipeDistance) > minSwipeDistance) {
-            if (swipeDistance > 0) {
-                // Swiped up - next post
+        console.log(`[SWIPE] Distance Y: ${swipeDistanceY.toFixed(0)}px, X: ${swipeDistanceX.toFixed(0)}px`);
+
+        // Only handle vertical swipes (ignore if too much horizontal movement)
+        if (swipeDistanceX > 100) {
+            console.log('[SWIPE] Ignored - too much horizontal movement (gallery swipe)');
+            return;
+        }
+
+        if (Math.abs(swipeDistanceY) > minSwipeDistance) {
+            if (swipeDistanceY > 0) {
+                console.log('[SWIPE] Up detected - going to next post');
                 this.nextPost();
             } else {
-                // Swiped down - previous post
+                console.log('[SWIPE] Down detected - going to previous post');
                 this.prevPost();
             }
+        } else {
+            console.log('[SWIPE] Too short - ignored');
         }
     }
 
     nextPost() {
-        // Prevent navigation during animation
         if (this.isAnimating) {
-            console.log('[NAV] Blocked nextPost - animation in progress');
+            console.log('[NAV] Blocked - animation in progress');
             return;
         }
 
-        if (this.currentIndex < this.posts.length - 1) {
-            this.isAnimating = true;
-            const oldIndex = this.currentIndex;
-            this.currentIndex++;
-            console.log(`[NAV] Moving from post ${oldIndex} to ${this.currentIndex}`);
+        if (this.currentIndex >= this.posts.length - 1) {
+            console.log('[NAV] Already at last post');
+            return;
+        }
 
-            this.animateToPost(oldIndex, this.currentIndex);
+        console.log(`[NAV] Next: ${this.currentIndex} -> ${this.currentIndex + 1}`);
+        this.isAnimating = true;
 
-            // Load more posts if near the end
-            if (this.currentIndex >= this.posts.length - 3 && this.after) {
-                this.fetchPosts();
-            }
+        const oldIndex = this.currentIndex;
+        this.currentIndex++;
+
+        // Ensure next post exists in DOM
+        if (!document.getElementById(`post-${this.currentIndex}`)) {
+            this.renderPosts();
+        }
+
+        this.performAnimation(oldIndex, this.currentIndex, 'next');
+
+        // Load more posts if near the end
+        if (this.currentIndex >= this.posts.length - 3 && this.after && !this.isLoading) {
+            console.log('[NAV] Preloading more posts...');
+            this.fetchPosts();
         }
     }
 
     prevPost() {
-        // Prevent navigation during animation
         if (this.isAnimating) {
-            console.log('[NAV] Blocked prevPost - animation in progress');
+            console.log('[NAV] Blocked - animation in progress');
             return;
         }
 
-        if (this.currentIndex > 0) {
-            this.isAnimating = true;
-            const oldIndex = this.currentIndex;
-            this.currentIndex--;
-            console.log(`[NAV] Moving from post ${oldIndex} to ${this.currentIndex}`);
-
-            this.animateToPost(oldIndex, this.currentIndex);
+        if (this.currentIndex <= 0) {
+            console.log('[NAV] Already at first post');
+            return;
         }
+
+        console.log(`[NAV] Prev: ${this.currentIndex} -> ${this.currentIndex - 1}`);
+        this.isAnimating = true;
+
+        const oldIndex = this.currentIndex;
+        this.currentIndex--;
+
+        // Ensure previous post exists in DOM
+        if (!document.getElementById(`post-${this.currentIndex}`)) {
+            this.renderPosts();
+        }
+
+        this.performAnimation(oldIndex, this.currentIndex, 'prev');
     }
 
-    animateToPost(fromIndex, toIndex) {
-        // Ensure the target post exists
-        this.renderPosts();
-
-        // Get the posts
+    performAnimation(fromIndex, toIndex, direction) {
         const fromPost = document.getElementById(`post-${fromIndex}`);
         const toPost = document.getElementById(`post-${toIndex}`);
 
         if (!fromPost || !toPost) {
-            console.error(`[ANIMATION ERROR] Missing posts - from: ${!!fromPost}, to: ${!!toPost}`);
+            console.error(`[ANIMATION] Missing posts - from:${!!fromPost} to:${!!toPost}`);
             this.isAnimating = false;
             return;
         }
 
-        // Pause all videos
+        console.log(`[ANIMATION] Animating ${direction}: ${fromIndex} -> ${toIndex}`);
+
+        // Pause videos
         this.pauseAllVideos();
 
-        // Determine animation direction
-        const isNext = toIndex > fromIndex;
+        // Animate using classes
+        if (direction === 'next') {
+            // Moving to next post (swipe up)
+            fromPost.classList.remove('active');
+            fromPost.classList.add('prev');
 
-        // Step 1: Position the target post off-screen without transition
-        toPost.style.transition = 'none';
-        toPost.className = `post ${isNext ? 'next' : 'prev'}`;
+            toPost.classList.remove('next');
+            toPost.classList.add('active');
+        } else {
+            // Moving to previous post (swipe down)
+            fromPost.classList.remove('active');
+            fromPost.classList.add('next');
 
-        // Force a reflow to ensure the position is applied before adding transition
-        toPost.offsetHeight;
+            toPost.classList.remove('prev');
+            toPost.classList.add('active');
+        }
 
-        // Step 2: Re-enable transitions
-        requestAnimationFrame(() => {
-            toPost.style.transition = '';
-            fromPost.style.transition = '';
-
-            // Step 3: Animate both posts to their new positions
-            requestAnimationFrame(() => {
-                fromPost.className = `post ${isNext ? 'prev' : 'next'}`;
-                toPost.className = 'post active';
-
-                // Play the current video after animation
-                setTimeout(() => {
-                    this.playCurrentVideo();
-                    this.isAnimating = false;
-                    console.log('[NAV] Animation complete, ready for next swipe');
-
-                    // Clean up old posts
-                    this.cleanupDistantPosts();
-                }, this.animationDuration);
-            });
-        });
+        // Release lock and cleanup after animation
+        setTimeout(() => {
+            this.isAnimating = false;
+            this.playCurrentVideo();
+            this.cleanupDistantPosts();
+            console.log(`[ANIMATION] Complete - ready for next interaction`);
+        }, this.animationDuration + 50); // Add small buffer
     }
 
     cleanupDistantPosts() {
-        // Remove posts that are far from current position
         const posts = this.container.querySelectorAll('.post');
         posts.forEach((post) => {
             const postIndex = parseInt(post.id.split('-')[1]);
-            // Keep current, previous, and next posts. Remove others.
-            if (Math.abs(postIndex - this.currentIndex) > 3) {
-                console.log(`[CLEANUP] Removing post ${postIndex} (current: ${this.currentIndex})`);
+            if (Math.abs(postIndex - this.currentIndex) > 2) {
+                console.log(`[CLEANUP] Removing post ${postIndex}`);
                 post.remove();
             }
         });
     }
 
     updatePostPositions() {
-        // This method is now simpler - just ensure correct classes without animation
+        // Update positions without animation (used after loading)
         const posts = this.container.querySelectorAll('.post');
 
         posts.forEach((post) => {
             const postIndex = parseInt(post.id.split('-')[1]);
 
-            // Set class without animation
-            post.style.transition = 'none';
+            // Remove all position classes
+            post.classList.remove('active', 'prev', 'next');
+
+            // Add correct class
             if (postIndex === this.currentIndex) {
-                post.className = 'post active';
-            } else if (postIndex === this.currentIndex - 1) {
-                post.className = 'post prev';
-            } else if (postIndex === this.currentIndex + 1) {
-                post.className = 'post next';
+                post.classList.add('active');
+            } else if (postIndex < this.currentIndex) {
+                post.classList.add('prev');
             } else {
-                // Position other posts off-screen
-                post.className = `post ${postIndex < this.currentIndex ? 'prev' : 'next'}`;
+                post.classList.add('next');
             }
-            // Force reflow
-            post.offsetHeight;
-            // Re-enable transition
-            post.style.transition = '';
         });
 
-        // Render nearby posts if they don't exist
         this.renderPosts();
     }
 
