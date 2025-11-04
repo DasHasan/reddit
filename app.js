@@ -115,7 +115,7 @@ class RedditViewer {
         report += `TEST 2: Reddit API Endpoint Access\n`;
         report += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
 
-        const testUrl = 'https://api.reddit.com/r/test?limit=1';
+        const testUrl = 'https://api.reddit.com/r/test.json?limit=1';
         report += `Endpoint: ${testUrl}\n`;
 
         try {
@@ -299,8 +299,8 @@ class RedditViewer {
 
         try {
             const url = this.after
-                ? `https://api.reddit.com/r/${this.currentSubreddit}?limit=50&after=${this.after}`
-                : `https://api.reddit.com/r/${this.currentSubreddit}?limit=50`;
+                ? `https://api.reddit.com/r/${this.currentSubreddit}.json?limit=50&after=${this.after}`
+                : `https://api.reddit.com/r/${this.currentSubreddit}.json?limit=50`;
 
             console.log(`[FETCH] Requesting: ${url}`);
 
