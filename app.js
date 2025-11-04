@@ -4,14 +4,16 @@ class RedditViewer {
         this.posts = [];
         this.currentIndex = 0;
         this.isLoading = false;
+        this.isAnimating = false; // Prevent multiple swipes during animation
         this.touchStartY = 0;
         this.touchEndY = 0;
         this.currentSubreddit = 'pics';
         this.after = null; // For pagination
+        this.animationDuration = 300; // Match CSS animation duration
 
         // CORS Proxy configuration
         // Since Reddit doesn't allow direct access from GitHub Pages, we use a CORS proxy
-        this.corsProxy = 'https://corsproxy.io/?';
+        this.corsProxy = 'https://api.cors.lol/?url=';
         this.redditApiBase = 'https://www.reddit.com';
 
         this.init();
@@ -37,8 +39,11 @@ class RedditViewer {
 
         // Keyboard navigation for desktop testing
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'ArrowDown') this.nextPost();
-            if (e.key === 'ArrowUp') this.prevPost();
+            // Only handle arrow keys if not already animating
+            if (!this.isAnimating) {
+                if (e.key === 'ArrowDown') this.nextPost();
+                if (e.key === 'ArrowUp') this.prevPost();
+            }
         });
 
         // Hide nav hint after 3 seconds
@@ -483,6 +488,12 @@ class RedditViewer {
     }
 
     handleSwipe() {
+        // Prevent swipes during animation
+        if (this.isAnimating) {
+            console.log('[SWIPE] Blocked - animation in progress');
+            return;
+        }
+
         const swipeDistance = this.touchStartY - this.touchEndY;
         const minSwipeDistance = 50;
 
@@ -498,8 +509,17 @@ class RedditViewer {
     }
 
     nextPost() {
+        // Prevent navigation during animation
+        if (this.isAnimating) {
+            console.log('[NAV] Blocked nextPost - animation in progress');
+            return;
+        }
+
         if (this.currentIndex < this.posts.length - 1) {
+            this.isAnimating = true;
             this.currentIndex++;
+            console.log(`[NAV] Moving to post ${this.currentIndex}`);
+
             this.updatePostPositions();
             this.pauseAllVideos();
             this.playCurrentVideo();
@@ -508,15 +528,36 @@ class RedditViewer {
             if (this.currentIndex >= this.posts.length - 3 && this.after) {
                 this.fetchPosts();
             }
+
+            // Release animation lock after animation completes
+            setTimeout(() => {
+                this.isAnimating = false;
+                console.log('[NAV] Animation complete, ready for next swipe');
+            }, this.animationDuration);
         }
     }
 
     prevPost() {
+        // Prevent navigation during animation
+        if (this.isAnimating) {
+            console.log('[NAV] Blocked prevPost - animation in progress');
+            return;
+        }
+
         if (this.currentIndex > 0) {
+            this.isAnimating = true;
             this.currentIndex--;
+            console.log(`[NAV] Moving to post ${this.currentIndex}`);
+
             this.updatePostPositions();
             this.pauseAllVideos();
             this.playCurrentVideo();
+
+            // Release animation lock after animation completes
+            setTimeout(() => {
+                this.isAnimating = false;
+                console.log('[NAV] Animation complete, ready for next swipe');
+            }, this.animationDuration);
         }
     }
 
