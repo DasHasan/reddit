@@ -23,12 +23,10 @@ class RedditViewer {
         this.loading = document.getElementById('loading');
         this.subredditInput = document.getElementById('subredditName');
         this.loadBtn = document.getElementById('loadBtn');
-        this.testBtn = document.getElementById('testBtn');
         this.navHint = document.getElementById('navHint');
 
         // Event listeners
         this.loadBtn.addEventListener('click', () => this.loadSubreddit());
-        this.testBtn.addEventListener('click', () => this.testConnection());
         this.subredditInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') this.loadSubreddit();
         });
@@ -61,306 +59,6 @@ class RedditViewer {
         this.container.innerHTML = '';
 
         await this.fetchPosts();
-    }
-
-    async testConnection() {
-        console.log('[CONNECTION TEST] Starting comprehensive connection diagnostics...');
-
-        const results = {
-            timestamp: new Date().toISOString(),
-            userAgent: navigator.userAgent,
-            online: navigator.onLine,
-            tests: []
-        };
-
-        // Show loading
-        this.showLoading();
-        this.testBtn.disabled = true;
-        this.testBtn.textContent = '🔄 Testing...';
-
-        let report = `[CONNECTION DIAGNOSTIC REPORT]\n`;
-        report += `Timestamp: ${results.timestamp}\n`;
-        report += `Browser Online Status: ${results.online ? '✓ ONLINE' : '✗ OFFLINE'}\n`;
-        report += `User Agent: ${navigator.userAgent}\n`;
-        report += `Current URL: ${window.location.href}\n`;
-        report += `Protocol: ${window.location.protocol}\n\n`;
-
-        // Test multiple Reddit endpoints to find which one works
-        report += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-        report += `TEST 1: Testing Reddit Endpoints (Direct)\n`;
-        report += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-        report += `Testing direct access to Reddit (no proxy)...\n`;
-
-        const endpointsToTest = [
-            'https://www.reddit.com/r/test.json?limit=1',
-            'https://api.reddit.com/r/test.json?limit=1',
-            'https://old.reddit.com/r/test.json?limit=1',
-            'https://oauth.reddit.com/r/test.json?limit=1'
-        ];
-
-        let workingEndpoint = null;
-
-        for (const testUrl of endpointsToTest) {
-            report += `\nTesting: ${testUrl}\n`;
-            console.log(`[CONNECTION TEST] Testing endpoint: ${testUrl}`);
-
-            try {
-                const startTime = performance.now();
-                const testResponse = await fetch(testUrl, {
-                    method: 'GET',
-                    headers: {
-                        'User-Agent': 'RedditTikTokViewer/1.0'
-                    },
-                    signal: AbortSignal.timeout(10000)
-                });
-                const duration = (performance.now() - startTime).toFixed(2);
-
-                report += `  Status: ${testResponse.status} ${testResponse.statusText}\n`;
-                report += `  Latency: ${duration}ms\n`;
-                report += `  Content-Type: ${testResponse.headers.get('content-type')}\n`;
-                report += `  CORS Headers:\n`;
-                report += `    • Access-Control-Allow-Origin: ${testResponse.headers.get('access-control-allow-origin') || 'NOT SET ✗'}\n`;
-
-                // Try to parse JSON
-                if (testResponse.ok) {
-                    try {
-                        const data = await testResponse.json();
-                        if (data.data && data.data.children) {
-                            report += `  JSON Parsing: ✓ VALID\n`;
-                            report += `  Posts Returned: ${data.data.children.length}\n`;
-                            report += `  Result: ✓✓✓ THIS ENDPOINT WORKS! ✓✓✓\n`;
-                            workingEndpoint = testUrl.replace('/r/test.json?limit=1', '');
-                            console.log(`[CONNECTION TEST] ✓✓✓ FOUND WORKING ENDPOINT: ${workingEndpoint}`);
-                            results.tests.push({
-                                endpoint: testUrl,
-                                status: 'PASS',
-                                latency: duration,
-                                corsEnabled: !!testResponse.headers.get('access-control-allow-origin')
-                            });
-                            break; // Found a working endpoint, stop testing
-                        } else {
-                            report += `  JSON Parsing: ✗ Unexpected structure\n`;
-                            report += `  Result: ✗ FAIL (bad response format)\n`;
-                        }
-                    } catch (jsonError) {
-                        report += `  JSON Parsing: ✗ FAIL - ${jsonError.message}\n`;
-                        report += `  Result: ✗ FAIL (cannot parse JSON)\n`;
-                    }
-                } else {
-                    report += `  Result: ✗ FAIL (HTTP error ${testResponse.status})\n`;
-                }
-
-                results.tests.push({
-                    endpoint: testUrl,
-                    status: 'PARTIAL',
-                    latency: duration,
-                    httpStatus: testResponse.status,
-                    corsEnabled: !!testResponse.headers.get('access-control-allow-origin')
-                });
-
-            } catch (error) {
-                report += `  Error: ${error.name} - ${error.message}\n`;
-                report += `  Result: ✗ FAIL (${error.name})\n`;
-
-                if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-                    report += `  Diagnosis: CORS blocked or network error\n`;
-                } else if (error.name === 'AbortError') {
-                    report += `  Diagnosis: Request timeout (>10s)\n`;
-                }
-
-                results.tests.push({
-                    endpoint: testUrl,
-                    status: 'FAIL',
-                    error: error.message,
-                    errorType: error.name
-                });
-
-                console.error(`[CONNECTION TEST] ${testUrl} failed:`, error);
-            }
-        }
-
-        // Test 2: Test CORS Proxy
-        if (!workingEndpoint) {
-            report += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-            report += `TEST 2: Testing CORS Proxy Solutions\n`;
-            report += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-            report += `Since direct access failed, testing CORS proxies...\n`;
-
-            const corsProxies = [
-                { name: 'corsproxy.io', url: 'https://corsproxy.io/?' },
-                { name: 'allorigins.win', url: 'https://api.allorigins.win/raw?url=' }
-            ];
-
-            for (const proxy of corsProxies) {
-                const redditUrl = 'https://www.reddit.com/r/test.json?limit=1';
-                const proxiedUrl = proxy.url + encodeURIComponent(redditUrl);
-
-                report += `\nTesting: ${proxy.name}\n`;
-                report += `  Proxy URL: ${proxy.url}\n`;
-                report += `  Reddit URL: ${redditUrl}\n`;
-                report += `  Full URL: ${proxiedUrl}\n`;
-                console.log(`[CONNECTION TEST] Testing CORS proxy: ${proxy.name}`);
-
-                try {
-                    const startTime = performance.now();
-                    const testResponse = await fetch(proxiedUrl, {
-                        method: 'GET',
-                        signal: AbortSignal.timeout(15000)
-                    });
-                    const duration = (performance.now() - startTime).toFixed(2);
-
-                    report += `  Status: ${testResponse.status} ${testResponse.statusText}\n`;
-                    report += `  Latency: ${duration}ms\n`;
-
-                    if (testResponse.ok) {
-                        try {
-                            const data = await testResponse.json();
-                            if (data.data && data.data.children) {
-                                report += `  JSON Parsing: ✓ VALID\n`;
-                                report += `  Posts Returned: ${data.data.children.length}\n`;
-                                report += `  Result: ✓✓✓ THIS PROXY WORKS! ✓✓✓\n`;
-                                workingEndpoint = proxy.url;
-                                console.log(`[CONNECTION TEST] ✓✓✓ FOUND WORKING CORS PROXY: ${proxy.name}`);
-                                results.tests.push({
-                                    endpoint: proxiedUrl,
-                                    proxy: proxy.name,
-                                    status: 'PASS',
-                                    latency: duration
-                                });
-                                break;
-                            } else {
-                                report += `  JSON Parsing: ✗ Unexpected structure\n`;
-                                report += `  Result: ✗ FAIL (bad response format)\n`;
-                            }
-                        } catch (jsonError) {
-                            report += `  JSON Parsing: ✗ FAIL - ${jsonError.message}\n`;
-                            report += `  Result: ✗ FAIL (cannot parse JSON)\n`;
-                        }
-                    } else {
-                        report += `  Result: ✗ FAIL (HTTP error ${testResponse.status})\n`;
-                    }
-
-                    results.tests.push({
-                        endpoint: proxiedUrl,
-                        proxy: proxy.name,
-                        status: 'PARTIAL',
-                        latency: duration,
-                        httpStatus: testResponse.status
-                    });
-
-                } catch (error) {
-                    report += `  Error: ${error.name} - ${error.message}\n`;
-                    report += `  Result: ✗ FAIL (${error.name})\n`;
-
-                    results.tests.push({
-                        endpoint: proxiedUrl,
-                        proxy: proxy.name,
-                        status: 'FAIL',
-                        error: error.message,
-                        errorType: error.name
-                    });
-
-                    console.error(`[CONNECTION TEST] ${proxy.name} failed:`, error);
-                }
-            }
-        }
-
-        // Test 3: Browser Capabilities
-        report += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-        report += `TEST 3: Browser Capabilities\n`;
-        report += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-
-        const capabilities = {
-            fetch: typeof fetch !== 'undefined',
-            abortController: typeof AbortController !== 'undefined',
-            performanceAPI: typeof performance !== 'undefined',
-            localStorage: typeof localStorage !== 'undefined',
-            sessionStorage: typeof sessionStorage !== 'undefined',
-        };
-
-        Object.entries(capabilities).forEach(([feature, supported]) => {
-            report += `${feature}: ${supported ? '✓ Supported' : '✗ Not Supported'}\n`;
-        });
-
-        results.browserCapabilities = capabilities;
-
-        // Test 4: Network Information (if available)
-        if (navigator.connection || navigator.mozConnection || navigator.webkitConnection) {
-            report += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-            report += `TEST 4: Network Information\n`;
-            report += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-
-            const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
-            report += `Effective Type: ${connection.effectiveType || 'Unknown'}\n`;
-            report += `Downlink: ${connection.downlink || 'Unknown'} Mbps\n`;
-            report += `RTT: ${connection.rtt || 'Unknown'} ms\n`;
-            report += `Save Data: ${connection.saveData ? 'Enabled' : 'Disabled'}\n`;
-
-            results.networkInfo = {
-                effectiveType: connection.effectiveType,
-                downlink: connection.downlink,
-                rtt: connection.rtt,
-                saveData: connection.saveData
-            };
-        }
-
-        // Summary
-        report += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-        report += `SUMMARY\n`;
-        report += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-
-        if (workingEndpoint) {
-            report += `✓✓✓ SUCCESS! ✓✓✓\n\n`;
-
-            if (workingEndpoint.includes('corsproxy') || workingEndpoint.includes('allorigins')) {
-                report += `Working CORS Proxy Found: ${workingEndpoint}\n`;
-                report += `Full URL Format: ${workingEndpoint}https://www.reddit.com/r/{subreddit}.json\n\n`;
-                report += `GOOD NEWS: App is already configured to use this proxy!\n`;
-                report += `Current setting in app.js constructor:\n`;
-                report += `  this.corsProxy = '${this.corsProxy}';\n\n`;
-                if (workingEndpoint === this.corsProxy) {
-                    report += `✓ App is using the working proxy!\n`;
-                } else {
-                    report += `⚠ RECOMMENDATION: Update app.js constructor:\n`;
-                    report += `  this.corsProxy = '${workingEndpoint}';\n`;
-                }
-            } else {
-                report += `Working Endpoint Found: ${workingEndpoint}\n`;
-                report += `Full URL Format: ${workingEndpoint}/r/{subreddit}.json\n\n`;
-                report += `RECOMMENDATION:\n`;
-                report += `Update your app.js to use this endpoint:\n`;
-                report += `  const url = '${workingEndpoint}/r/' + subreddit + '.json?limit=50';\n\n`;
-                report += `This endpoint has CORS enabled and works from your domain!\n`;
-            }
-            results.workingEndpoint = workingEndpoint;
-        } else {
-            report += `✗✗✗ NO WORKING ENDPOINT FOUND ✗✗✗\n\n`;
-            report += `None of the tested Reddit endpoints work from your domain.\n\n`;
-            report += `Tested endpoints:\n`;
-            endpointsToTest.forEach(url => {
-                report += `  • ${url}\n`;
-            });
-            report += `\nPOSSIBLE SOLUTIONS:\n`;
-            report += `1. Use a CORS proxy:\n`;
-            report += `   https://corsproxy.io/?url=https://www.reddit.com/r/pics.json\n`;
-            report += `2. Use Reddit OAuth API (requires app registration)\n`;
-            report += `3. Run a backend proxy server\n`;
-            report += `4. Use a browser extension to disable CORS (dev only)\n`;
-            report += `5. Deploy to a platform with server-side rendering\n`;
-        }
-
-        // Log full results to console
-        console.log('[CONNECTION TEST] Full results:', results);
-        console.log('[CONNECTION TEST] Report:\n' + report);
-
-        // Show results to user
-        this.hideLoading();
-        this.testBtn.disabled = false;
-        this.testBtn.textContent = '🔧 Test Connection';
-
-        this.showError(report, null);
-
-        return results;
     }
 
     async fetchPosts() {
@@ -562,6 +260,7 @@ class RedditViewer {
             this.posts = [...this.posts, ...mediaPosts];
             console.log(`[SUCCESS] Total posts loaded: ${this.posts.length}`);
             this.renderPosts();
+            this.updatePostPositions(); // Position the posts after rendering
             this.hideLoading();
 
         } catch (error) {
@@ -605,7 +304,8 @@ class RedditViewer {
             }
         }
 
-        this.updatePostPositions();
+        // Don't call updatePostPositions here - it creates infinite recursion
+        // updatePostPositions already calls renderPosts at the end
     }
 
     createPostElement(post, index) {

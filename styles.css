@@ -24,27 +24,31 @@ body {
 /* Subreddit Input */
 .subreddit-input {
     position: fixed;
-    top: 20px;
-    left: 50%;
-    transform: translateX(-50%);
+    top: 10px;
+    left: 10px;
+    right: 10px;
     z-index: 100;
     display: flex;
-    gap: 10px;
+    gap: 8px;
     background: rgba(0, 0, 0, 0.8);
-    padding: 10px;
+    padding: 8px;
     border-radius: 25px;
     backdrop-filter: blur(10px);
+    max-width: 600px;
+    margin: 0 auto;
 }
 
 .subreddit-input input {
-    padding: 10px 15px;
+    flex: 1;
+    padding: 12px 15px;
     border: none;
     border-radius: 20px;
     background: rgba(255, 255, 255, 0.1);
     color: #fff;
     outline: none;
-    font-size: 14px;
-    min-width: 200px;
+    font-size: 16px;
+    min-width: 0;
+    -webkit-appearance: none;
 }
 
 .subreddit-input input::placeholder {
@@ -52,41 +56,29 @@ body {
 }
 
 .subreddit-input button {
-    padding: 10px 20px;
+    padding: 12px 24px;
     border: none;
     border-radius: 20px;
     background: #ff4458;
     color: #fff;
     font-weight: 600;
     cursor: pointer;
-    font-size: 14px;
+    font-size: 16px;
     transition: background 0.2s;
+    white-space: nowrap;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
 }
 
 .subreddit-input button:active {
     background: #e63946;
+    transform: scale(0.98);
 }
 
 .subreddit-input button:disabled {
     background: #666;
     cursor: not-allowed;
     opacity: 0.6;
-}
-
-.subreddit-input .test-btn {
-    background: rgba(74, 144, 226, 0.8);
-    border: 1px solid rgba(74, 144, 226, 0.5);
-    padding: 10px 15px;
-    font-size: 13px;
-}
-
-.subreddit-input .test-btn:active:not(:disabled) {
-    background: rgba(64, 130, 210, 0.9);
-}
-
-.subreddit-input .test-btn:hover:not(:disabled) {
-    background: rgba(74, 144, 226, 0.95);
-    border-color: rgba(74, 144, 226, 0.8);
 }
 
 /* Loading Indicator */
@@ -127,6 +119,8 @@ body {
     overflow: hidden;
     scroll-snap-type: y mandatory;
     -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+    -webkit-tap-highlight-color: transparent;
 }
 
 /* Individual Post */
@@ -235,28 +229,36 @@ body {
 /* Post Info Overlay */
 .post-info {
     position: absolute;
-    bottom: 80px;
-    left: 20px;
-    right: 20px;
+    bottom: 20px;
+    left: 15px;
+    right: 15px;
     z-index: 10;
-    background: linear-gradient(to top, rgba(0, 0, 0, 0.8), transparent);
-    padding: 20px;
-    border-radius: 10px;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.7) 80%, transparent 100%);
+    padding: 20px 15px 15px;
+    border-radius: 12px;
+    pointer-events: none;
 }
 
 .post-title {
-    font-size: 16px;
+    font-size: 15px;
     font-weight: 600;
-    margin-bottom: 8px;
-    line-height: 1.4;
-    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+    margin-bottom: 10px;
+    line-height: 1.5;
+    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.9);
+    max-height: 4.5em;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
 }
 
 .post-meta {
-    font-size: 12px;
-    color: rgba(255, 255, 255, 0.7);
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.8);
     display: flex;
-    gap: 15px;
+    gap: 12px;
+    flex-wrap: wrap;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
 }
 
 /* Navigation Hint */
@@ -455,10 +457,68 @@ body {
 }
 
 /* Responsive adjustments */
+@media (max-width: 480px) {
+    .subreddit-input {
+        top: 8px;
+        left: 8px;
+        right: 8px;
+        padding: 6px;
+        gap: 6px;
+    }
+
+    .subreddit-input input {
+        padding: 10px 12px;
+        font-size: 16px;
+    }
+
+    .subreddit-input button {
+        padding: 10px 18px;
+        font-size: 15px;
+    }
+
+    .post-title {
+        font-size: 14px;
+    }
+
+    .post-meta {
+        font-size: 12px;
+        gap: 10px;
+    }
+
+    .post-info {
+        bottom: 15px;
+        left: 12px;
+        right: 12px;
+        padding: 15px 12px 12px;
+    }
+}
+
 @media (min-width: 768px) {
     .posts-container {
         max-width: 480px;
         margin: 0 auto;
+    }
+
+    .subreddit-input {
+        left: 50%;
+        right: auto;
+        transform: translateX(-50%);
+        max-width: 500px;
+    }
+
+    .post-title {
+        font-size: 17px;
+    }
+
+    .post-meta {
+        font-size: 14px;
+    }
+}
+
+/* Prevent zoom on input focus (iOS) */
+@media screen and (max-width: 767px) {
+    input[type="text"] {
+        font-size: 16px !important;
     }
 }
 
