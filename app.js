@@ -14,20 +14,13 @@ class RedditViewer {
         this.animationDuration = 300; // Match CSS animation duration
 
         // CORS Proxy configuration
-        // Since Reddit doesn't allow direct access from GitHub Pages, we use a CORS proxy
-        this.corsProxy = 'https://corsproxy.io/?';
-        this.redditApiBase = 'https://www.reddit.com';
+        // Using Cloudflare Worker CORS proxy
+        this.corsProxy = 'https://tight-cell-468c.hasan-celik1501.workers.dev/?url=';
+        this.redditApiBase = 'https://api.reddit.com';
 
         // List of CORS proxies to test
         this.corsProxies = [
-            { name: 'corsproxy.io', url: 'https://corsproxy.io/?' },
-            { name: 'allorigins', url: 'https://api.allorigins.win/raw?url=' },
-            { name: 'cors-anywhere (herokuapp)', url: 'https://cors-anywhere.herokuapp.com/' },
-            { name: 'thingproxy', url: 'https://thingproxy.freeboard.io/fetch/' },
-            { name: 'cors.bridged.cc', url: 'https://cors.bridged.cc/' },
-            { name: 'yacdn.org', url: 'https://api.codetabs.com/v1/proxy?quest=' },
-            { name: 'proxy.cors.sh', url: 'https://proxy.cors.sh/' },
-            { name: 'crossorigin.me', url: 'https://crossorigin.me/' }
+            { name: 'Cloudflare Worker (Primary)', url: 'https://tight-cell-468c.hasan-celik1501.workers.dev/?url=' }
         ];
 
         this.init();
