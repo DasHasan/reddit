@@ -9,6 +9,11 @@ class RedditViewer {
         this.currentSubreddit = 'pics';
         this.after = null; // For pagination
 
+        // CORS Proxy configuration
+        // Since Reddit doesn't allow direct access from GitHub Pages, we use a CORS proxy
+        this.corsProxy = 'https://corsproxy.io/?';
+        this.redditApiBase = 'https://www.reddit.com';
+
         this.init();
     }
 
@@ -82,8 +87,9 @@ class RedditViewer {
 
         // Test multiple Reddit endpoints to find which one works
         report += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-        report += `TEST 1: Testing Multiple Reddit Endpoints\n`;
+        report += `TEST 1: Testing Reddit Endpoints (Direct)\n`;
         report += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+        report += `Testing direct access to Reddit (no proxy)...\n`;
 
         const endpointsToTest = [
             'https://www.reddit.com/r/test.json?limit=1',
@@ -173,9 +179,95 @@ class RedditViewer {
             }
         }
 
-        // Test 2: Browser Capabilities
+        // Test 2: Test CORS Proxy
+        if (!workingEndpoint) {
+            report += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+            report += `TEST 2: Testing CORS Proxy Solutions\n`;
+            report += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+            report += `Since direct access failed, testing CORS proxies...\n`;
+
+            const corsProxies = [
+                { name: 'corsproxy.io', url: 'https://corsproxy.io/?' },
+                { name: 'allorigins.win', url: 'https://api.allorigins.win/raw?url=' }
+            ];
+
+            for (const proxy of corsProxies) {
+                const redditUrl = 'https://www.reddit.com/r/test.json?limit=1';
+                const proxiedUrl = proxy.url + encodeURIComponent(redditUrl);
+
+                report += `\nTesting: ${proxy.name}\n`;
+                report += `  Proxy URL: ${proxy.url}\n`;
+                report += `  Reddit URL: ${redditUrl}\n`;
+                report += `  Full URL: ${proxiedUrl}\n`;
+                console.log(`[CONNECTION TEST] Testing CORS proxy: ${proxy.name}`);
+
+                try {
+                    const startTime = performance.now();
+                    const testResponse = await fetch(proxiedUrl, {
+                        method: 'GET',
+                        signal: AbortSignal.timeout(15000)
+                    });
+                    const duration = (performance.now() - startTime).toFixed(2);
+
+                    report += `  Status: ${testResponse.status} ${testResponse.statusText}\n`;
+                    report += `  Latency: ${duration}ms\n`;
+
+                    if (testResponse.ok) {
+                        try {
+                            const data = await testResponse.json();
+                            if (data.data && data.data.children) {
+                                report += `  JSON Parsing: ✓ VALID\n`;
+                                report += `  Posts Returned: ${data.data.children.length}\n`;
+                                report += `  Result: ✓✓✓ THIS PROXY WORKS! ✓✓✓\n`;
+                                workingEndpoint = proxy.url;
+                                console.log(`[CONNECTION TEST] ✓✓✓ FOUND WORKING CORS PROXY: ${proxy.name}`);
+                                results.tests.push({
+                                    endpoint: proxiedUrl,
+                                    proxy: proxy.name,
+                                    status: 'PASS',
+                                    latency: duration
+                                });
+                                break;
+                            } else {
+                                report += `  JSON Parsing: ✗ Unexpected structure\n`;
+                                report += `  Result: ✗ FAIL (bad response format)\n`;
+                            }
+                        } catch (jsonError) {
+                            report += `  JSON Parsing: ✗ FAIL - ${jsonError.message}\n`;
+                            report += `  Result: ✗ FAIL (cannot parse JSON)\n`;
+                        }
+                    } else {
+                        report += `  Result: ✗ FAIL (HTTP error ${testResponse.status})\n`;
+                    }
+
+                    results.tests.push({
+                        endpoint: proxiedUrl,
+                        proxy: proxy.name,
+                        status: 'PARTIAL',
+                        latency: duration,
+                        httpStatus: testResponse.status
+                    });
+
+                } catch (error) {
+                    report += `  Error: ${error.name} - ${error.message}\n`;
+                    report += `  Result: ✗ FAIL (${error.name})\n`;
+
+                    results.tests.push({
+                        endpoint: proxiedUrl,
+                        proxy: proxy.name,
+                        status: 'FAIL',
+                        error: error.message,
+                        errorType: error.name
+                    });
+
+                    console.error(`[CONNECTION TEST] ${proxy.name} failed:`, error);
+                }
+            }
+        }
+
+        // Test 3: Browser Capabilities
         report += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-        report += `TEST 2: Browser Capabilities\n`;
+        report += `TEST 3: Browser Capabilities\n`;
         report += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
 
         const capabilities = {
@@ -192,10 +284,10 @@ class RedditViewer {
 
         results.browserCapabilities = capabilities;
 
-        // Test 3: Network Information (if available)
+        // Test 4: Network Information (if available)
         if (navigator.connection || navigator.mozConnection || navigator.webkitConnection) {
             report += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-            report += `TEST 3: Network Information\n`;
+            report += `TEST 4: Network Information\n`;
             report += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
 
             const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
@@ -219,12 +311,27 @@ class RedditViewer {
 
         if (workingEndpoint) {
             report += `✓✓✓ SUCCESS! ✓✓✓\n\n`;
-            report += `Working Endpoint Found: ${workingEndpoint}\n`;
-            report += `Full URL Format: ${workingEndpoint}/r/{subreddit}.json\n\n`;
-            report += `RECOMMENDATION:\n`;
-            report += `Update your app.js to use this endpoint:\n`;
-            report += `  const url = '${workingEndpoint}/r/' + subreddit + '.json?limit=50';\n\n`;
-            report += `This endpoint has CORS enabled and works from your domain!\n`;
+
+            if (workingEndpoint.includes('corsproxy') || workingEndpoint.includes('allorigins')) {
+                report += `Working CORS Proxy Found: ${workingEndpoint}\n`;
+                report += `Full URL Format: ${workingEndpoint}https://www.reddit.com/r/{subreddit}.json\n\n`;
+                report += `GOOD NEWS: App is already configured to use this proxy!\n`;
+                report += `Current setting in app.js constructor:\n`;
+                report += `  this.corsProxy = '${this.corsProxy}';\n\n`;
+                if (workingEndpoint === this.corsProxy) {
+                    report += `✓ App is using the working proxy!\n`;
+                } else {
+                    report += `⚠ RECOMMENDATION: Update app.js constructor:\n`;
+                    report += `  this.corsProxy = '${workingEndpoint}';\n`;
+                }
+            } else {
+                report += `Working Endpoint Found: ${workingEndpoint}\n`;
+                report += `Full URL Format: ${workingEndpoint}/r/{subreddit}.json\n\n`;
+                report += `RECOMMENDATION:\n`;
+                report += `Update your app.js to use this endpoint:\n`;
+                report += `  const url = '${workingEndpoint}/r/' + subreddit + '.json?limit=50';\n\n`;
+                report += `This endpoint has CORS enabled and works from your domain!\n`;
+            }
             results.workingEndpoint = workingEndpoint;
         } else {
             report += `✗✗✗ NO WORKING ENDPOINT FOUND ✗✗✗\n\n`;
@@ -265,11 +372,16 @@ class RedditViewer {
         const startTime = performance.now();
 
         try {
-            const url = this.after
-                ? `https://api.reddit.com/r/${this.currentSubreddit}.json?limit=50&after=${this.after}`
-                : `https://api.reddit.com/r/${this.currentSubreddit}.json?limit=50`;
+            // Build Reddit API URL
+            const redditUrl = this.after
+                ? `${this.redditApiBase}/r/${this.currentSubreddit}.json?limit=50&after=${this.after}`
+                : `${this.redditApiBase}/r/${this.currentSubreddit}.json?limit=50`;
 
-            console.log(`[FETCH] Requesting: ${url}`);
+            // Use CORS proxy to bypass CORS restrictions
+            const url = this.corsProxy + encodeURIComponent(redditUrl);
+
+            console.log(`[FETCH] Reddit URL: ${redditUrl}`);
+            console.log(`[FETCH] Proxied URL: ${url}`);
 
             // Add timeout to fetch request
             const controller = new AbortController();
@@ -298,18 +410,21 @@ class RedditViewer {
                     throw new Error(errorMsg);
                 } else if (fetchError.message.includes('Failed to fetch') || fetchError.message.includes('NetworkError')) {
                     const errorMsg = `[NETWORK CONNECTION ERROR]\n` +
-                        `Failed to establish connection to Reddit API\n` +
+                        `Failed to establish connection via CORS proxy\n` +
                         `Error: ${fetchError.message}\n` +
-                        `URL: ${url}\n` +
+                        `CORS Proxy: ${this.corsProxy}\n` +
+                        `Reddit URL: ${redditUrl}\n` +
+                        `Proxied URL: ${url}\n` +
                         `Possible causes:\n` +
+                        `  • CORS proxy service (${this.corsProxy}) is down\n` +
+                        `  • CORS proxy rate limit exceeded\n` +
                         `  • No internet connection\n` +
-                        `  • Reddit servers are down\n` +
-                        `  • Firewall or proxy blocking request\n` +
-                        `  • DNS resolution failure\n` +
-                        `  • Running from file:// protocol (use a web server)\n` +
-                        `  • Browser extension blocking the request\n\n` +
-                        `NOTE: api.reddit.com has proper CORS headers enabled,\n` +
-                        `so this should work from any domain including GitHub Pages.`;
+                        `  • Firewall blocking the proxy\n` +
+                        `  • Reddit servers are down\n\n` +
+                        `NOTE: We're using a CORS proxy because Reddit blocks\n` +
+                        `direct requests from GitHub Pages. If this proxy is down,\n` +
+                        `try updating corsProxy in app.js constructor to:\n` +
+                        `  'https://api.allorigins.win/raw?url='`;
                     console.error(errorMsg);
                     throw new Error(errorMsg);
                 } else {
