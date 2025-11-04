@@ -517,23 +517,16 @@ class RedditViewer {
 
         if (this.currentIndex < this.posts.length - 1) {
             this.isAnimating = true;
+            const oldIndex = this.currentIndex;
             this.currentIndex++;
-            console.log(`[NAV] Moving to post ${this.currentIndex}`);
+            console.log(`[NAV] Moving from post ${oldIndex} to ${this.currentIndex}`);
 
-            this.updatePostPositions();
-            this.pauseAllVideos();
-            this.playCurrentVideo();
+            this.animateToPost(oldIndex, this.currentIndex);
 
             // Load more posts if near the end
             if (this.currentIndex >= this.posts.length - 3 && this.after) {
                 this.fetchPosts();
             }
-
-            // Release animation lock after animation completes
-            setTimeout(() => {
-                this.isAnimating = false;
-                console.log('[NAV] Animation complete, ready for next swipe');
-            }, this.animationDuration);
         }
     }
 
@@ -546,27 +539,86 @@ class RedditViewer {
 
         if (this.currentIndex > 0) {
             this.isAnimating = true;
+            const oldIndex = this.currentIndex;
             this.currentIndex--;
-            console.log(`[NAV] Moving to post ${this.currentIndex}`);
+            console.log(`[NAV] Moving from post ${oldIndex} to ${this.currentIndex}`);
 
-            this.updatePostPositions();
-            this.pauseAllVideos();
-            this.playCurrentVideo();
-
-            // Release animation lock after animation completes
-            setTimeout(() => {
-                this.isAnimating = false;
-                console.log('[NAV] Animation complete, ready for next swipe');
-            }, this.animationDuration);
+            this.animateToPost(oldIndex, this.currentIndex);
         }
     }
 
+    animateToPost(fromIndex, toIndex) {
+        // Ensure the target post exists
+        this.renderPosts();
+
+        // Get the posts
+        const fromPost = document.getElementById(`post-${fromIndex}`);
+        const toPost = document.getElementById(`post-${toIndex}`);
+
+        if (!fromPost || !toPost) {
+            console.error(`[ANIMATION ERROR] Missing posts - from: ${!!fromPost}, to: ${!!toPost}`);
+            this.isAnimating = false;
+            return;
+        }
+
+        // Pause all videos
+        this.pauseAllVideos();
+
+        // Determine animation direction
+        const isNext = toIndex > fromIndex;
+
+        // Step 1: Position the target post off-screen without transition
+        toPost.style.transition = 'none';
+        toPost.className = `post ${isNext ? 'next' : 'prev'}`;
+
+        // Force a reflow to ensure the position is applied before adding transition
+        toPost.offsetHeight;
+
+        // Step 2: Re-enable transitions
+        requestAnimationFrame(() => {
+            toPost.style.transition = '';
+            fromPost.style.transition = '';
+
+            // Step 3: Animate both posts to their new positions
+            requestAnimationFrame(() => {
+                fromPost.className = `post ${isNext ? 'prev' : 'next'}`;
+                toPost.className = 'post active';
+
+                // Play the current video after animation
+                setTimeout(() => {
+                    this.playCurrentVideo();
+                    this.isAnimating = false;
+                    console.log('[NAV] Animation complete, ready for next swipe');
+
+                    // Clean up old posts
+                    this.cleanupDistantPosts();
+                }, this.animationDuration);
+            });
+        });
+    }
+
+    cleanupDistantPosts() {
+        // Remove posts that are far from current position
+        const posts = this.container.querySelectorAll('.post');
+        posts.forEach((post) => {
+            const postIndex = parseInt(post.id.split('-')[1]);
+            // Keep current, previous, and next posts. Remove others.
+            if (Math.abs(postIndex - this.currentIndex) > 3) {
+                console.log(`[CLEANUP] Removing post ${postIndex} (current: ${this.currentIndex})`);
+                post.remove();
+            }
+        });
+    }
+
     updatePostPositions() {
+        // This method is now simpler - just ensure correct classes without animation
         const posts = this.container.querySelectorAll('.post');
 
-        posts.forEach((post, idx) => {
+        posts.forEach((post) => {
             const postIndex = parseInt(post.id.split('-')[1]);
 
+            // Set class without animation
+            post.style.transition = 'none';
             if (postIndex === this.currentIndex) {
                 post.className = 'post active';
             } else if (postIndex === this.currentIndex - 1) {
@@ -574,11 +626,13 @@ class RedditViewer {
             } else if (postIndex === this.currentIndex + 1) {
                 post.className = 'post next';
             } else {
-                // Remove posts that are too far away to save memory
-                if (Math.abs(postIndex - this.currentIndex) > 2) {
-                    post.remove();
-                }
+                // Position other posts off-screen
+                post.className = `post ${postIndex < this.currentIndex ? 'prev' : 'next'}`;
             }
+            // Force reflow
+            post.offsetHeight;
+            // Re-enable transition
+            post.style.transition = '';
         });
 
         // Render nearby posts if they don't exist
