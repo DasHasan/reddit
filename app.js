@@ -87,7 +87,7 @@ class RedditViewer {
 
         try {
             const startTime = performance.now();
-            const testResponse = await fetch('https://www.reddit.com/api/v1/user/nobody/about.json', {
+            const testResponse = await fetch('https://api.reddit.com/', {
                 method: 'GET',
                 signal: AbortSignal.timeout(10000)
             });
@@ -115,7 +115,7 @@ class RedditViewer {
         report += `TEST 2: Reddit API Endpoint Access\n`;
         report += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
 
-        const testUrl = 'https://www.reddit.com/r/test.json?limit=1';
+        const testUrl = 'https://api.reddit.com/r/test?limit=1';
         report += `Endpoint: ${testUrl}\n`;
 
         try {
@@ -178,19 +178,22 @@ class RedditViewer {
 
             // Detailed error diagnosis
             if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-                report += `\nDiagnosis: CORS POLICY VIOLATION\n`;
-                report += `The Reddit API is blocking requests from your origin.\n`;
+                report += `\nDiagnosis: NETWORK CONNECTION ERROR\n`;
+                report += `Cannot establish connection to Reddit API.\n`;
                 report += `\nCurrent Origin: ${window.location.origin}\n`;
-                report += `\nThis is a known issue when:\n`;
-                report += `  • Running from file:// protocol\n`;
-                report += `  • Running from certain domains without CORS headers\n`;
+                report += `\nPossible causes:\n`;
+                report += `  • Running from file:// protocol (use a web server)\n`;
                 report += `  • Browser extensions blocking requests\n`;
-                report += `  • Corporate firewall/proxy interference\n`;
+                report += `  • Corporate firewall/proxy blocking Reddit\n`;
+                report += `  • No internet connection\n`;
+                report += `  • DNS resolution failure\n`;
                 report += `\nSOLUTION:\n`;
-                report += `  1. Use a CORS proxy (e.g., cors-anywhere)\n`;
-                report += `  2. Run from localhost with a local server\n`;
-                report += `  3. Use Reddit's official API with OAuth\n`;
-                report += `  4. Deploy to a domain with CORS enabled\n`;
+                report += `  1. Run from localhost: python -m http.server 8000\n`;
+                report += `  2. Disable browser extensions temporarily\n`;
+                report += `  3. Check firewall/proxy settings\n`;
+                report += `  4. Verify internet connection\n`;
+                report += `\nNOTE: api.reddit.com has CORS headers, so this should work\n`;
+                report += `from most domains including GitHub Pages.\n`;
             } else if (error.name === 'AbortError') {
                 report += `\nDiagnosis: REQUEST TIMEOUT\n`;
                 report += `The request took longer than 15 seconds.\n`;
@@ -296,8 +299,8 @@ class RedditViewer {
 
         try {
             const url = this.after
-                ? `https://www.reddit.com/r/${this.currentSubreddit}.json?limit=50&after=${this.after}`
-                : `https://www.reddit.com/r/${this.currentSubreddit}.json?limit=50`;
+                ? `https://api.reddit.com/r/${this.currentSubreddit}?limit=50&after=${this.after}`
+                : `https://api.reddit.com/r/${this.currentSubreddit}?limit=50`;
 
             console.log(`[FETCH] Requesting: ${url}`);
 
@@ -332,11 +335,14 @@ class RedditViewer {
                         `Error: ${fetchError.message}\n` +
                         `URL: ${url}\n` +
                         `Possible causes:\n` +
-                        `  • CORS policy blocking request (check browser console)\n` +
                         `  • No internet connection\n` +
                         `  • Reddit servers are down\n` +
                         `  • Firewall or proxy blocking request\n` +
-                        `  • DNS resolution failure`;
+                        `  • DNS resolution failure\n` +
+                        `  • Running from file:// protocol (use a web server)\n` +
+                        `  • Browser extension blocking the request\n\n` +
+                        `NOTE: api.reddit.com has proper CORS headers enabled,\n` +
+                        `so this should work from any domain including GitHub Pages.`;
                     console.error(errorMsg);
                     throw new Error(errorMsg);
                 } else {
