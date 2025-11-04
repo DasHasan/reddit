@@ -13,7 +13,7 @@ class RedditViewer {
 
         // CORS Proxy configuration
         // Since Reddit doesn't allow direct access from GitHub Pages, we use a CORS proxy
-        this.corsProxy = 'https://api.cors.lol/?url=';
+        this.corsProxy = 'https://corsproxy.io/?';
         this.redditApiBase = 'https://www.reddit.com';
 
         this.init();
