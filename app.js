@@ -80,144 +80,102 @@ class RedditViewer {
         report += `Current URL: ${window.location.href}\n`;
         report += `Protocol: ${window.location.protocol}\n\n`;
 
-        // Test 1: Basic Internet Connectivity (using a reliable public API)
+        // Test multiple Reddit endpoints to find which one works
         report += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-        report += `TEST 1: Basic Internet Connectivity\n`;
-        report += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-
-        try {
-            const startTime = performance.now();
-            const testResponse = await fetch('https://api.reddit.com/', {
-                method: 'GET',
-                signal: AbortSignal.timeout(10000)
-            });
-            const duration = (performance.now() - startTime).toFixed(2);
-
-            report += `Status: ✓ PASS\n`;
-            report += `Latency: ${duration}ms\n`;
-            report += `HTTP Status: ${testResponse.status} ${testResponse.statusText}\n`;
-            results.tests.push({ name: 'Internet Connectivity', status: 'PASS', latency: duration });
-            console.log(`[CONNECTION TEST] Internet connectivity: PASS (${duration}ms)`);
-        } catch (error) {
-            report += `Status: ✗ FAIL\n`;
-            report += `Error: ${error.name} - ${error.message}\n`;
-            report += `Details: Cannot reach Reddit servers\n`;
-            report += `Possible causes:\n`;
-            report += `  • No internet connection\n`;
-            report += `  • Firewall blocking HTTPS traffic\n`;
-            report += `  • DNS resolution failure\n`;
-            results.tests.push({ name: 'Internet Connectivity', status: 'FAIL', error: error.message });
-            console.error('[CONNECTION TEST] Internet connectivity: FAIL', error);
-        }
-
-        // Test 2: Reddit API Endpoint Access
-        report += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-        report += `TEST 2: Reddit API Endpoint Access\n`;
+        report += `TEST 1: Testing Multiple Reddit Endpoints\n`;
         report += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
 
-        const testUrl = 'https://api.reddit.com/r/test.json?limit=1';
-        report += `Endpoint: ${testUrl}\n`;
+        const endpointsToTest = [
+            'https://www.reddit.com/r/test.json?limit=1',
+            'https://api.reddit.com/r/test.json?limit=1',
+            'https://old.reddit.com/r/test.json?limit=1',
+            'https://oauth.reddit.com/r/test.json?limit=1'
+        ];
 
-        try {
-            const startTime = performance.now();
-            const apiResponse = await fetch(testUrl, {
-                method: 'GET',
-                headers: {
-                    'User-Agent': 'RedditTikTokViewer/1.0'
-                },
-                signal: AbortSignal.timeout(15000)
-            });
-            const duration = (performance.now() - startTime).toFixed(2);
+        let workingEndpoint = null;
 
-            report += `Status: ✓ PASS\n`;
-            report += `HTTP Status: ${apiResponse.status} ${apiResponse.statusText}\n`;
-            report += `Latency: ${duration}ms\n`;
-            report += `Content-Type: ${apiResponse.headers.get('content-type')}\n`;
-            report += `CORS Headers:\n`;
-            report += `  • Access-Control-Allow-Origin: ${apiResponse.headers.get('access-control-allow-origin') || 'NOT SET'}\n`;
-            report += `  • Access-Control-Allow-Methods: ${apiResponse.headers.get('access-control-allow-methods') || 'NOT SET'}\n`;
+        for (const testUrl of endpointsToTest) {
+            report += `\nTesting: ${testUrl}\n`;
+            console.log(`[CONNECTION TEST] Testing endpoint: ${testUrl}`);
 
-            // Test JSON parsing
             try {
-                const data = await apiResponse.json();
-                if (data.data && data.data.children) {
-                    report += `JSON Parsing: ✓ Valid Reddit API Response\n`;
-                    report += `Posts Returned: ${data.data.children.length}\n`;
-                    results.tests.push({
-                        name: 'Reddit API Access',
-                        status: 'PASS',
-                        latency: duration,
-                        httpStatus: apiResponse.status
-                    });
+                const startTime = performance.now();
+                const testResponse = await fetch(testUrl, {
+                    method: 'GET',
+                    headers: {
+                        'User-Agent': 'RedditTikTokViewer/1.0'
+                    },
+                    signal: AbortSignal.timeout(10000)
+                });
+                const duration = (performance.now() - startTime).toFixed(2);
+
+                report += `  Status: ${testResponse.status} ${testResponse.statusText}\n`;
+                report += `  Latency: ${duration}ms\n`;
+                report += `  Content-Type: ${testResponse.headers.get('content-type')}\n`;
+                report += `  CORS Headers:\n`;
+                report += `    • Access-Control-Allow-Origin: ${testResponse.headers.get('access-control-allow-origin') || 'NOT SET ✗'}\n`;
+
+                // Try to parse JSON
+                if (testResponse.ok) {
+                    try {
+                        const data = await testResponse.json();
+                        if (data.data && data.data.children) {
+                            report += `  JSON Parsing: ✓ VALID\n`;
+                            report += `  Posts Returned: ${data.data.children.length}\n`;
+                            report += `  Result: ✓✓✓ THIS ENDPOINT WORKS! ✓✓✓\n`;
+                            workingEndpoint = testUrl.replace('/r/test.json?limit=1', '');
+                            console.log(`[CONNECTION TEST] ✓✓✓ FOUND WORKING ENDPOINT: ${workingEndpoint}`);
+                            results.tests.push({
+                                endpoint: testUrl,
+                                status: 'PASS',
+                                latency: duration,
+                                corsEnabled: !!testResponse.headers.get('access-control-allow-origin')
+                            });
+                            break; // Found a working endpoint, stop testing
+                        } else {
+                            report += `  JSON Parsing: ✗ Unexpected structure\n`;
+                            report += `  Result: ✗ FAIL (bad response format)\n`;
+                        }
+                    } catch (jsonError) {
+                        report += `  JSON Parsing: ✗ FAIL - ${jsonError.message}\n`;
+                        report += `  Result: ✗ FAIL (cannot parse JSON)\n`;
+                    }
                 } else {
-                    report += `JSON Parsing: ✗ Unexpected response structure\n`;
-                    results.tests.push({
-                        name: 'Reddit API Access',
-                        status: 'PARTIAL',
-                        latency: duration,
-                        httpStatus: apiResponse.status,
-                        issue: 'Unexpected response structure'
-                    });
+                    report += `  Result: ✗ FAIL (HTTP error ${testResponse.status})\n`;
                 }
-            } catch (jsonError) {
-                report += `JSON Parsing: ✗ FAIL - ${jsonError.message}\n`;
+
                 results.tests.push({
-                    name: 'Reddit API Access',
+                    endpoint: testUrl,
                     status: 'PARTIAL',
                     latency: duration,
-                    httpStatus: apiResponse.status,
-                    issue: 'JSON parsing failed'
+                    httpStatus: testResponse.status,
+                    corsEnabled: !!testResponse.headers.get('access-control-allow-origin')
                 });
+
+            } catch (error) {
+                report += `  Error: ${error.name} - ${error.message}\n`;
+                report += `  Result: ✗ FAIL (${error.name})\n`;
+
+                if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+                    report += `  Diagnosis: CORS blocked or network error\n`;
+                } else if (error.name === 'AbortError') {
+                    report += `  Diagnosis: Request timeout (>10s)\n`;
+                }
+
+                results.tests.push({
+                    endpoint: testUrl,
+                    status: 'FAIL',
+                    error: error.message,
+                    errorType: error.name
+                });
+
+                console.error(`[CONNECTION TEST] ${testUrl} failed:`, error);
             }
-
-            console.log(`[CONNECTION TEST] Reddit API access: PASS (${duration}ms)`);
-        } catch (error) {
-            report += `Status: ✗ FAIL\n`;
-            report += `Error Type: ${error.name}\n`;
-            report += `Error Message: ${error.message}\n`;
-
-            // Detailed error diagnosis
-            if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-                report += `\nDiagnosis: NETWORK CONNECTION ERROR\n`;
-                report += `Cannot establish connection to Reddit API.\n`;
-                report += `\nCurrent Origin: ${window.location.origin}\n`;
-                report += `\nPossible causes:\n`;
-                report += `  • Running from file:// protocol (use a web server)\n`;
-                report += `  • Browser extensions blocking requests\n`;
-                report += `  • Corporate firewall/proxy blocking Reddit\n`;
-                report += `  • No internet connection\n`;
-                report += `  • DNS resolution failure\n`;
-                report += `\nSOLUTION:\n`;
-                report += `  1. Run from localhost: python -m http.server 8000\n`;
-                report += `  2. Disable browser extensions temporarily\n`;
-                report += `  3. Check firewall/proxy settings\n`;
-                report += `  4. Verify internet connection\n`;
-                report += `\nNOTE: api.reddit.com has CORS headers, so this should work\n`;
-                report += `from most domains including GitHub Pages.\n`;
-            } else if (error.name === 'AbortError') {
-                report += `\nDiagnosis: REQUEST TIMEOUT\n`;
-                report += `The request took longer than 15 seconds.\n`;
-                report += `Possible causes:\n`;
-                report += `  • Very slow internet connection\n`;
-                report += `  • Reddit servers not responding\n`;
-                report += `  • Network congestion\n`;
-            } else {
-                report += `\nDiagnosis: NETWORK ERROR\n`;
-                report += `Could not establish connection to Reddit API.\n`;
-            }
-
-            results.tests.push({
-                name: 'Reddit API Access',
-                status: 'FAIL',
-                error: error.message,
-                errorType: error.name
-            });
-            console.error('[CONNECTION TEST] Reddit API access: FAIL', error);
         }
 
-        // Test 3: Browser Capabilities
+        // Test 2: Browser Capabilities
         report += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-        report += `TEST 3: Browser Capabilities\n`;
+        report += `TEST 2: Browser Capabilities\n`;
         report += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
 
         const capabilities = {
@@ -234,10 +192,10 @@ class RedditViewer {
 
         results.browserCapabilities = capabilities;
 
-        // Test 4: Network Information (if available)
+        // Test 3: Network Information (if available)
         if (navigator.connection || navigator.mozConnection || navigator.webkitConnection) {
             report += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-            report += `TEST 4: Network Information\n`;
+            report += `TEST 3: Network Information\n`;
             report += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
 
             const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
@@ -259,20 +217,29 @@ class RedditViewer {
         report += `SUMMARY\n`;
         report += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
 
-        const passCount = results.tests.filter(t => t.status === 'PASS').length;
-        const failCount = results.tests.filter(t => t.status === 'FAIL').length;
-        const totalTests = results.tests.length;
-
-        report += `Total Tests: ${totalTests}\n`;
-        report += `Passed: ${passCount}\n`;
-        report += `Failed: ${failCount}\n`;
-
-        if (failCount === 0) {
-            report += `\nOverall Status: ✓ ALL TESTS PASSED\n`;
-            report += `Connection to Reddit API is working properly!\n`;
+        if (workingEndpoint) {
+            report += `✓✓✓ SUCCESS! ✓✓✓\n\n`;
+            report += `Working Endpoint Found: ${workingEndpoint}\n`;
+            report += `Full URL Format: ${workingEndpoint}/r/{subreddit}.json\n\n`;
+            report += `RECOMMENDATION:\n`;
+            report += `Update your app.js to use this endpoint:\n`;
+            report += `  const url = '${workingEndpoint}/r/' + subreddit + '.json?limit=50';\n\n`;
+            report += `This endpoint has CORS enabled and works from your domain!\n`;
+            results.workingEndpoint = workingEndpoint;
         } else {
-            report += `\nOverall Status: ✗ ISSUES DETECTED\n`;
-            report += `Please review the failed tests above for details.\n`;
+            report += `✗✗✗ NO WORKING ENDPOINT FOUND ✗✗✗\n\n`;
+            report += `None of the tested Reddit endpoints work from your domain.\n\n`;
+            report += `Tested endpoints:\n`;
+            endpointsToTest.forEach(url => {
+                report += `  • ${url}\n`;
+            });
+            report += `\nPOSSIBLE SOLUTIONS:\n`;
+            report += `1. Use a CORS proxy:\n`;
+            report += `   https://corsproxy.io/?url=https://www.reddit.com/r/pics.json\n`;
+            report += `2. Use Reddit OAuth API (requires app registration)\n`;
+            report += `3. Run a backend proxy server\n`;
+            report += `4. Use a browser extension to disable CORS (dev only)\n`;
+            report += `5. Deploy to a platform with server-side rendering\n`;
         }
 
         // Log full results to console
