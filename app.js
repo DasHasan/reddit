@@ -18,6 +18,18 @@ class RedditViewer {
         this.corsProxy = 'https://corsproxy.io/?';
         this.redditApiBase = 'https://www.reddit.com';
 
+        // List of CORS proxies to test
+        this.corsProxies = [
+            { name: 'corsproxy.io', url: 'https://corsproxy.io/?' },
+            { name: 'allorigins', url: 'https://api.allorigins.win/raw?url=' },
+            { name: 'cors-anywhere (herokuapp)', url: 'https://cors-anywhere.herokuapp.com/' },
+            { name: 'thingproxy', url: 'https://thingproxy.freeboard.io/fetch/' },
+            { name: 'cors.bridged.cc', url: 'https://cors.bridged.cc/' },
+            { name: 'yacdn.org', url: 'https://api.codetabs.com/v1/proxy?quest=' },
+            { name: 'proxy.cors.sh', url: 'https://proxy.cors.sh/' },
+            { name: 'crossorigin.me', url: 'https://crossorigin.me/' }
+        ];
+
         this.init();
     }
 
@@ -28,12 +40,18 @@ class RedditViewer {
         this.subredditInput = document.getElementById('subredditName');
         this.loadBtn = document.getElementById('loadBtn');
         this.navHint = document.getElementById('navHint');
+        this.testProxyBtn = document.getElementById('testProxyBtn');
+        this.proxyTestModal = document.getElementById('proxyTestModal');
+        this.proxyTestBody = document.getElementById('proxyTestBody');
+        this.proxyModalClose = document.getElementById('proxyModalClose');
 
         // Event listeners
         this.loadBtn.addEventListener('click', () => this.loadSubreddit());
         this.subredditInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') this.loadSubreddit();
         });
+        this.testProxyBtn.addEventListener('click', () => this.testAllProxies());
+        this.proxyModalClose.addEventListener('click', () => this.closeProxyModal());
 
         // Touch events for swiping
         this.container.addEventListener('touchstart', (e) => this.handleTouchStart(e), { passive: true });
@@ -838,9 +856,180 @@ class RedditViewer {
         }
         return num.toString();
     }
+
+    // Proxy Testing Methods
+    async testAllProxies() {
+        console.log('[PROXY TEST] Starting proxy tests...');
+        this.proxyTestModal.style.display = 'flex';
+        this.proxyTestBody.innerHTML = '<p style="color: #4a9eff; margin-bottom: 15px;">Testing all CORS proxies...</p>';
+
+        const testUrl = `${this.redditApiBase}/r/pics.json?limit=1`;
+        const results = [];
+
+        for (const proxy of this.corsProxies) {
+            const resultDiv = document.createElement('div');
+            resultDiv.className = 'proxy-result testing';
+            resultDiv.id = `proxy-${this.sanitizeId(proxy.name)}`;
+            resultDiv.innerHTML = `
+                <div class="proxy-result-name">${this.escapeHtml(proxy.name)}</div>
+                <div class="proxy-result-url">${this.escapeHtml(proxy.url)}</div>
+                <div class="proxy-result-status">⏳ Testing...</div>
+            `;
+            this.proxyTestBody.appendChild(resultDiv);
+
+            const result = await this.testSingleProxy(proxy, testUrl);
+            results.push({ proxy, result });
+
+            this.updateProxyResult(resultDiv, proxy, result);
+        }
+
+        // Add summary
+        const successCount = results.filter(r => r.result.success).length;
+        const summaryDiv = document.createElement('div');
+        summaryDiv.style.cssText = 'margin-top: 20px; padding: 15px; border-top: 2px solid rgba(74, 158, 255, 0.3); color: #4a9eff;';
+        summaryDiv.innerHTML = `
+            <strong>Summary:</strong> ${successCount} out of ${this.corsProxies.length} proxies working
+        `;
+        this.proxyTestBody.appendChild(summaryDiv);
+
+        console.log('[PROXY TEST] Completed all tests');
+    }
+
+    async testSingleProxy(proxy, testUrl) {
+        const startTime = performance.now();
+        const timeout = 10000; // 10 seconds
+
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+            const url = proxy.url + encodeURIComponent(testUrl);
+            console.log(`[PROXY TEST] Testing ${proxy.name}: ${url}`);
+
+            const response = await fetch(url, {
+                signal: controller.signal,
+                headers: {
+                    'User-Agent': 'RedditTikTokViewer/1.0'
+                }
+            });
+
+            clearTimeout(timeoutId);
+            const duration = (performance.now() - startTime).toFixed(0);
+
+            if (!response.ok) {
+                return {
+                    success: false,
+                    error: `HTTP ${response.status}: ${response.statusText}`,
+                    duration
+                };
+            }
+
+            const data = await response.json();
+
+            if (!data.data || !data.data.children) {
+                return {
+                    success: false,
+                    error: 'Invalid Reddit API response structure',
+                    duration
+                };
+            }
+
+            return {
+                success: true,
+                duration,
+                postsFound: data.data.children.length
+            };
+
+        } catch (error) {
+            const duration = (performance.now() - startTime).toFixed(0);
+
+            if (error.name === 'AbortError') {
+                return {
+                    success: false,
+                    error: 'Timeout (>10s)',
+                    duration
+                };
+            }
+
+            return {
+                success: false,
+                error: error.message || 'Network error',
+                duration
+            };
+        }
+    }
+
+    updateProxyResult(resultDiv, proxy, result) {
+        resultDiv.className = `proxy-result ${result.success ? 'success' : 'failed'}`;
+
+        let statusHtml;
+        if (result.success) {
+            statusHtml = `
+                <div class="proxy-result-status">✅ Working - Found ${result.postsFound} posts</div>
+                <div class="proxy-result-time">Response time: ${result.duration}ms</div>
+                <button class="proxy-use-btn" onclick="window.redditViewer.switchProxy('${proxy.url.replace(/'/g, "\\'")}', '${proxy.name.replace(/'/g, "\\'")}')">
+                    Use This Proxy
+                </button>
+            `;
+        } else {
+            statusHtml = `
+                <div class="proxy-result-status">❌ Failed: ${this.escapeHtml(result.error)}</div>
+                <div class="proxy-result-time">Attempted in: ${result.duration}ms</div>
+            `;
+        }
+
+        resultDiv.innerHTML = `
+            <div class="proxy-result-name">${this.escapeHtml(proxy.name)}</div>
+            <div class="proxy-result-url">${this.escapeHtml(proxy.url)}</div>
+            ${statusHtml}
+        `;
+    }
+
+    switchProxy(proxyUrl, proxyName) {
+        this.corsProxy = proxyUrl;
+        console.log(`[PROXY] Switched to: ${proxyName} (${proxyUrl})`);
+
+        // Show success message
+        const message = document.createElement('div');
+        message.style.cssText = `
+            position: fixed;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(76, 175, 80, 0.95);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 8px;
+            z-index: 300;
+            font-weight: 600;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        `;
+        message.textContent = `✅ Switched to ${proxyName}`;
+        document.body.appendChild(message);
+
+        setTimeout(() => message.remove(), 3000);
+
+        this.closeProxyModal();
+
+        // Reload current subreddit with new proxy
+        if (this.posts.length > 0) {
+            console.log('[PROXY] Reloading subreddit with new proxy...');
+            this.loadSubreddit();
+        }
+    }
+
+    closeProxyModal() {
+        this.proxyTestModal.style.display = 'none';
+    }
+
+    sanitizeId(str) {
+        return str.replace(/[^a-zA-Z0-9]/g, '-');
+    }
 }
 
 // Initialize app when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
-    new RedditViewer();
+    const viewer = new RedditViewer();
+    // Expose to global scope for button onclick handlers
+    window.redditViewer = viewer;
 });
