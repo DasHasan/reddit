@@ -12,6 +12,7 @@
         <div class="subreddit-input" id="subredditInput">
             <input type="text" id="subredditName" placeholder="Enter subreddit (e.g., pics)" value="pics">
             <button id="loadBtn">Load</button>
+            <button id="testProxyBtn" class="test-proxy-btn">Test Proxies</button>
         </div>
 
         <!-- Loading Indicator -->
@@ -28,6 +29,19 @@
         <!-- Navigation Hint -->
         <div class="nav-hint" id="navHint">
             <p>Swipe up/down to navigate</p>
+        </div>
+
+        <!-- Proxy Test Modal -->
+        <div class="proxy-test-modal" id="proxyTestModal" style="display: none;">
+            <div class="proxy-test-content">
+                <div class="proxy-test-header">
+                    <h3>CORS Proxy Test Results</h3>
+                    <button class="proxy-modal-close" id="proxyModalClose">×</button>
+                </div>
+                <div class="proxy-test-body" id="proxyTestBody">
+                    <p>Testing proxies...</p>
+                </div>
+            </div>
         </div>
     </div>
 
