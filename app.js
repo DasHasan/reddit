@@ -13,15 +13,9 @@ class RedditViewer {
         this.after = null; // For pagination
         this.animationDuration = 300; // Match CSS animation duration
 
-        // CORS Proxy configuration
-        // Using Cloudflare Worker CORS proxy
-        this.corsProxy = 'https://tight-cell-468c.hasan-celik1501.workers.dev/?url=';
-        this.redditApiBase = 'https://api.reddit.com';
-
-        // List of CORS proxies to test
-        this.corsProxies = [
-            { name: 'Cloudflare Worker (Primary)', url: 'https://tight-cell-468c.hasan-celik1501.workers.dev/?url=' }
-        ];
+        // JSONP configuration
+        this.redditApiBase = 'https://www.reddit.com';
+        this.jsonpCallbackCounter = 0; // For generating unique callback names
 
         this.init();
     }
@@ -33,18 +27,12 @@ class RedditViewer {
         this.subredditInput = document.getElementById('subredditName');
         this.loadBtn = document.getElementById('loadBtn');
         this.navHint = document.getElementById('navHint');
-        this.testProxyBtn = document.getElementById('testProxyBtn');
-        this.proxyTestModal = document.getElementById('proxyTestModal');
-        this.proxyTestBody = document.getElementById('proxyTestBody');
-        this.proxyModalClose = document.getElementById('proxyModalClose');
 
         // Event listeners
         this.loadBtn.addEventListener('click', () => this.loadSubreddit());
         this.subredditInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') this.loadSubreddit();
         });
-        this.testProxyBtn.addEventListener('click', () => this.testAllProxies());
-        this.proxyModalClose.addEventListener('click', () => this.closeProxyModal());
 
         // Touch events for swiping
         this.container.addEventListener('touchstart', (e) => this.handleTouchStart(e), { passive: true });
@@ -79,6 +67,48 @@ class RedditViewer {
         await this.fetchPosts();
     }
 
+    // JSONP request handler
+    jsonpRequest(url, timeout = 15000) {
+        return new Promise((resolve, reject) => {
+            // Generate unique callback name
+            const callbackName = `jsonpCallback_${Date.now()}_${this.jsonpCallbackCounter++}`;
+
+            // Create script element
+            const script = document.createElement('script');
+            const timeoutId = setTimeout(() => {
+                cleanup();
+                reject(new Error('JSONP request timeout'));
+            }, timeout);
+
+            // Cleanup function
+            const cleanup = () => {
+                clearTimeout(timeoutId);
+                delete window[callbackName];
+                if (script.parentNode) {
+                    script.parentNode.removeChild(script);
+                }
+            };
+
+            // Define callback function
+            window[callbackName] = (data) => {
+                cleanup();
+                resolve(data);
+            };
+
+            // Handle script loading errors
+            script.onerror = () => {
+                cleanup();
+                reject(new Error('JSONP script load error'));
+            };
+
+            // Set script source with callback parameter
+            script.src = `${url}${url.includes('?') ? '&' : '?'}jsonp=${callbackName}`;
+
+            // Add script to DOM to trigger request
+            document.head.appendChild(script);
+        });
+    }
+
     async fetchPosts() {
         if (this.isLoading) return;
 
@@ -88,165 +118,56 @@ class RedditViewer {
         const startTime = performance.now();
 
         try {
-            // Build Reddit API URL
+            // Build Reddit API URL using JSONP
             const redditUrl = this.after
                 ? `${this.redditApiBase}/r/${this.currentSubreddit}.json?limit=50&after=${this.after}`
                 : `${this.redditApiBase}/r/${this.currentSubreddit}.json?limit=50`;
 
-            // Use CORS proxy to bypass CORS restrictions
-            const url = this.corsProxy + encodeURIComponent(redditUrl);
+            console.log(`[FETCH] Reddit URL (JSONP): ${redditUrl}`);
 
-            console.log(`[FETCH] Reddit URL: ${redditUrl}`);
-            console.log(`[FETCH] Proxied URL: ${url}`);
-
-            // Add timeout to fetch request
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
-
-            let response;
+            // Use JSONP to fetch data (no CORS issues!)
+            let data;
             try {
-                response = await fetch(url, {
-                    signal: controller.signal,
-                    headers: {
-                        'User-Agent': 'RedditTikTokViewer/1.0'
-                    }
-                });
-                clearTimeout(timeoutId);
-            } catch (fetchError) {
-                clearTimeout(timeoutId);
+                data = await this.jsonpRequest(redditUrl);
+                const requestDuration = (performance.now() - startTime).toFixed(2);
+                console.log(`[FETCH] JSONP response received in ${requestDuration}ms`);
+            } catch (jsonpError) {
+                const requestDuration = (performance.now() - startTime).toFixed(2);
 
-                // Detect specific network error types
-                if (fetchError.name === 'AbortError') {
+                if (jsonpError.message === 'JSONP request timeout') {
                     const errorMsg = `[NETWORK TIMEOUT ERROR]\n` +
                         `Request exceeded 15 second timeout\n` +
-                        `URL: ${url}\n` +
+                        `URL: ${redditUrl}\n` +
                         `Subreddit: r/${this.currentSubreddit}\n` +
+                        `Duration: ${requestDuration}ms\n` +
                         `Possible causes: Slow network, server not responding, or rate limiting`;
                     console.error(errorMsg);
                     throw new Error(errorMsg);
-                } else if (fetchError.message.includes('Failed to fetch') || fetchError.message.includes('NetworkError')) {
-                    const errorMsg = `[NETWORK CONNECTION ERROR]\n` +
-                        `Failed to establish connection via CORS proxy\n` +
-                        `Error: ${fetchError.message}\n` +
-                        `CORS Proxy: ${this.corsProxy}\n` +
-                        `Reddit URL: ${redditUrl}\n` +
-                        `Proxied URL: ${url}\n` +
+                } else {
+                    const errorMsg = `[JSONP ERROR]\n` +
+                        `Failed to load data via JSONP\n` +
+                        `Error: ${jsonpError.message}\n` +
+                        `URL: ${redditUrl}\n` +
+                        `Subreddit: r/${this.currentSubreddit}\n` +
+                        `Duration: ${requestDuration}ms\n` +
                         `Possible causes:\n` +
-                        `  • CORS proxy service (${this.corsProxy}) is down\n` +
-                        `  • CORS proxy rate limit exceeded\n` +
-                        `  • No internet connection\n` +
-                        `  • Firewall blocking the proxy\n` +
-                        `  • Reddit servers are down\n\n` +
-                        `NOTE: We're using a CORS proxy because Reddit blocks\n` +
-                        `direct requests from GitHub Pages. If this proxy is down,\n` +
-                        `try updating corsProxy in app.js constructor to:\n` +
-                        `  'https://api.allorigins.win/raw?url='`;
+                        `  • Reddit servers are down\n` +
+                        `  • Subreddit doesn't exist\n` +
+                        `  • Network connectivity issues\n` +
+                        `  • Ad blocker or script blocker interfering`;
                     console.error(errorMsg);
                     throw new Error(errorMsg);
-                } else {
-                    throw fetchError;
                 }
-            }
-
-            const requestDuration = (performance.now() - startTime).toFixed(2);
-            console.log(`[FETCH] Response received in ${requestDuration}ms - Status: ${response.status} ${response.statusText}`);
-
-            // Detailed HTTP error handling
-            if (!response.ok) {
-                const errorDetails = {
-                    status: response.status,
-                    statusText: response.statusText,
-                    url: url,
-                    subreddit: this.currentSubreddit,
-                    headers: Object.fromEntries(response.headers.entries()),
-                    timestamp: new Date().toISOString()
-                };
-
-                let errorBody = '';
-                try {
-                    errorBody = await response.text();
-                    console.error('[HTTP ERROR] Response Body:', errorBody);
-                } catch (e) {
-                    console.error('[HTTP ERROR] Could not read response body');
-                }
-
-                let errorMessage = `[HTTP ${response.status} ERROR]\n`;
-
-                switch (response.status) {
-                    case 403:
-                        errorMessage += `FORBIDDEN - Access Denied\n` +
-                            `Subreddit: r/${this.currentSubreddit}\n` +
-                            `Possible causes:\n` +
-                            `  • Subreddit is private or restricted\n` +
-                            `  • API access blocked by Reddit\n` +
-                            `  • Rate limit exceeded (too many requests)\n` +
-                            `  • Geographic restrictions`;
-                        break;
-                    case 404:
-                        errorMessage += `NOT FOUND\n` +
-                            `Subreddit r/${this.currentSubreddit} does not exist\n` +
-                            `Check spelling and try again`;
-                        break;
-                    case 429:
-                        errorMessage += `RATE LIMIT EXCEEDED\n` +
-                            `Too many requests to Reddit API\n` +
-                            `Wait a few minutes before trying again\n` +
-                            `Rate-Limit Headers: ${JSON.stringify(errorDetails.headers['x-ratelimit-remaining'] || 'N/A')}`;
-                        break;
-                    case 500:
-                    case 502:
-                    case 503:
-                    case 504:
-                        errorMessage += `SERVER ERROR\n` +
-                            `Reddit's servers are experiencing issues\n` +
-                            `Status: ${response.status} ${response.statusText}\n` +
-                            `Try again in a few moments`;
-                        break;
-                    default:
-                        errorMessage += `${response.statusText}\n` +
-                            `Subreddit: r/${this.currentSubreddit}\n` +
-                            `URL: ${url}`;
-                }
-
-                errorMessage += `\n\nTechnical Details:\n` +
-                    `  Status Code: ${response.status}\n` +
-                    `  Status Text: ${response.statusText}\n` +
-                    `  Request Duration: ${requestDuration}ms\n` +
-                    `  Timestamp: ${errorDetails.timestamp}`;
-
-                console.error('[HTTP ERROR] Full Details:', errorDetails);
-                throw new Error(errorMessage);
-            }
-
-            // Parse JSON with error handling
-            let data;
-            try {
-                data = await response.json();
-                console.log(`[FETCH] JSON parsed successfully - Posts found: ${data.data?.children?.length || 0}`);
-            } catch (jsonError) {
-                const errorMsg = `[JSON PARSE ERROR]\n` +
-                    `Failed to parse Reddit API response\n` +
-                    `Error: ${jsonError.message}\n` +
-                    `URL: ${url}\n` +
-                    `Status: ${response.status}\n` +
-                    `Response may not be valid JSON\n` +
-                    `This could indicate:\n` +
-                    `  • Reddit API returned HTML instead of JSON\n` +
-                    `  • Response was corrupted during transmission\n` +
-                    `  • Unexpected API response format`;
-                console.error(errorMsg);
-                console.error('[JSON PARSE ERROR] First 500 chars of response:', await response.text().then(t => t.substring(0, 500)));
-                throw new Error(errorMsg);
             }
 
             // Validate response structure
-            if (!data.data || !data.data.children || !Array.isArray(data.data.children)) {
+            if (!data || !data.data || !data.data.children || !Array.isArray(data.data.children)) {
                 const errorMsg = `[API STRUCTURE ERROR]\n` +
                     `Reddit API returned unexpected data structure\n` +
                     `Expected: {data: {children: [...]}}\n` +
                     `Received: ${JSON.stringify(data).substring(0, 200)}...\n` +
                     `Subreddit: r/${this.currentSubreddit}\n` +
-                    `This indicates the Reddit API response format has changed`;
+                    `This indicates the subreddit may not exist or the Reddit API response format has changed`;
                 console.error(errorMsg);
                 console.error('[API STRUCTURE ERROR] Full response:', data);
                 throw new Error(errorMsg);
@@ -848,175 +769,6 @@ class RedditViewer {
             return (num / 1000).toFixed(1) + 'K';
         }
         return num.toString();
-    }
-
-    // Proxy Testing Methods
-    async testAllProxies() {
-        console.log('[PROXY TEST] Starting proxy tests...');
-        this.proxyTestModal.style.display = 'flex';
-        this.proxyTestBody.innerHTML = '<p style="color: #4a9eff; margin-bottom: 15px;">Testing all CORS proxies...</p>';
-
-        const testUrl = `${this.redditApiBase}/r/pics.json?limit=1`;
-        const results = [];
-
-        for (const proxy of this.corsProxies) {
-            const resultDiv = document.createElement('div');
-            resultDiv.className = 'proxy-result testing';
-            resultDiv.id = `proxy-${this.sanitizeId(proxy.name)}`;
-            resultDiv.innerHTML = `
-                <div class="proxy-result-name">${this.escapeHtml(proxy.name)}</div>
-                <div class="proxy-result-url">${this.escapeHtml(proxy.url)}</div>
-                <div class="proxy-result-status">⏳ Testing...</div>
-            `;
-            this.proxyTestBody.appendChild(resultDiv);
-
-            const result = await this.testSingleProxy(proxy, testUrl);
-            results.push({ proxy, result });
-
-            this.updateProxyResult(resultDiv, proxy, result);
-        }
-
-        // Add summary
-        const successCount = results.filter(r => r.result.success).length;
-        const summaryDiv = document.createElement('div');
-        summaryDiv.style.cssText = 'margin-top: 20px; padding: 15px; border-top: 2px solid rgba(74, 158, 255, 0.3); color: #4a9eff;';
-        summaryDiv.innerHTML = `
-            <strong>Summary:</strong> ${successCount} out of ${this.corsProxies.length} proxies working
-        `;
-        this.proxyTestBody.appendChild(summaryDiv);
-
-        console.log('[PROXY TEST] Completed all tests');
-    }
-
-    async testSingleProxy(proxy, testUrl) {
-        const startTime = performance.now();
-        const timeout = 10000; // 10 seconds
-
-        try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-            const url = proxy.url + encodeURIComponent(testUrl);
-            console.log(`[PROXY TEST] Testing ${proxy.name}: ${url}`);
-
-            const response = await fetch(url, {
-                signal: controller.signal,
-                headers: {
-                    'User-Agent': 'RedditTikTokViewer/1.0'
-                }
-            });
-
-            clearTimeout(timeoutId);
-            const duration = (performance.now() - startTime).toFixed(0);
-
-            if (!response.ok) {
-                return {
-                    success: false,
-                    error: `HTTP ${response.status}: ${response.statusText}`,
-                    duration
-                };
-            }
-
-            const data = await response.json();
-
-            if (!data.data || !data.data.children) {
-                return {
-                    success: false,
-                    error: 'Invalid Reddit API response structure',
-                    duration
-                };
-            }
-
-            return {
-                success: true,
-                duration,
-                postsFound: data.data.children.length
-            };
-
-        } catch (error) {
-            const duration = (performance.now() - startTime).toFixed(0);
-
-            if (error.name === 'AbortError') {
-                return {
-                    success: false,
-                    error: 'Timeout (>10s)',
-                    duration
-                };
-            }
-
-            return {
-                success: false,
-                error: error.message || 'Network error',
-                duration
-            };
-        }
-    }
-
-    updateProxyResult(resultDiv, proxy, result) {
-        resultDiv.className = `proxy-result ${result.success ? 'success' : 'failed'}`;
-
-        let statusHtml;
-        if (result.success) {
-            statusHtml = `
-                <div class="proxy-result-status">✅ Working - Found ${result.postsFound} posts</div>
-                <div class="proxy-result-time">Response time: ${result.duration}ms</div>
-                <button class="proxy-use-btn" onclick="window.redditViewer.switchProxy('${proxy.url.replace(/'/g, "\\'")}', '${proxy.name.replace(/'/g, "\\'")}')">
-                    Use This Proxy
-                </button>
-            `;
-        } else {
-            statusHtml = `
-                <div class="proxy-result-status">❌ Failed: ${this.escapeHtml(result.error)}</div>
-                <div class="proxy-result-time">Attempted in: ${result.duration}ms</div>
-            `;
-        }
-
-        resultDiv.innerHTML = `
-            <div class="proxy-result-name">${this.escapeHtml(proxy.name)}</div>
-            <div class="proxy-result-url">${this.escapeHtml(proxy.url)}</div>
-            ${statusHtml}
-        `;
-    }
-
-    switchProxy(proxyUrl, proxyName) {
-        this.corsProxy = proxyUrl;
-        console.log(`[PROXY] Switched to: ${proxyName} (${proxyUrl})`);
-
-        // Show success message
-        const message = document.createElement('div');
-        message.style.cssText = `
-            position: fixed;
-            top: 80px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(76, 175, 80, 0.95);
-            color: white;
-            padding: 15px 25px;
-            border-radius: 8px;
-            z-index: 300;
-            font-weight: 600;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-        `;
-        message.textContent = `✅ Switched to ${proxyName}`;
-        document.body.appendChild(message);
-
-        setTimeout(() => message.remove(), 3000);
-
-        this.closeProxyModal();
-
-        // Reload current subreddit with new proxy
-        if (this.posts.length > 0) {
-            console.log('[PROXY] Reloading subreddit with new proxy...');
-            this.loadSubreddit();
-        }
-    }
-
-    closeProxyModal() {
-        this.proxyTestModal.style.display = 'none';
-    }
-
-    sanitizeId(str) {
-        return str.replace(/[^a-zA-Z0-9]/g, '-');
     }
 }
 
