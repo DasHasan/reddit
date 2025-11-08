@@ -294,6 +294,20 @@ class RedditViewer {
     }
 
     createImage(post) {
+        const container = document.createElement('div');
+        container.style.position = 'relative';
+        container.style.width = '100%';
+        container.style.height = '100%';
+        container.style.display = 'flex';
+        container.style.alignItems = 'center';
+        container.style.justifyContent = 'center';
+
+        // Create loading spinner
+        const spinner = document.createElement('div');
+        spinner.className = 'image-loading';
+        container.appendChild(spinner);
+
+        // Create image
         const img = document.createElement('img');
         let imageUrl = post.url;
 
@@ -306,7 +320,21 @@ class RedditViewer {
         img.alt = post.title;
         img.loading = 'lazy';
 
-        return img;
+        // Hide spinner and show image when loaded
+        img.onload = () => {
+            spinner.remove();
+            img.classList.add('loaded');
+        };
+
+        // Remove spinner on error too
+        img.onerror = () => {
+            spinner.remove();
+            img.classList.add('loaded');
+        };
+
+        container.appendChild(img);
+
+        return container;
     }
 
     createVideo(post) {
@@ -366,10 +394,28 @@ class RedditViewer {
 
             const media = mediaMetadata[item.media_id];
             if (media && media.s) {
+                // Create loading spinner
+                const spinner = document.createElement('div');
+                spinner.className = 'image-loading';
+                slide.appendChild(spinner);
+
                 const img = document.createElement('img');
                 img.src = media.s.u ? media.s.u.replace(/&amp;/g, '&') : media.s.gif;
                 img.alt = `Gallery image ${idx + 1}`;
                 img.loading = 'lazy';
+
+                // Hide spinner and show image when loaded
+                img.onload = () => {
+                    spinner.remove();
+                    img.classList.add('loaded');
+                };
+
+                // Remove spinner on error too
+                img.onerror = () => {
+                    spinner.remove();
+                    img.classList.add('loaded');
+                };
+
                 slide.appendChild(img);
             }
 

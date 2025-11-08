@@ -81,15 +81,6 @@ body {
     opacity: 0.6;
 }
 
-.test-proxy-btn {
-    background: #4a9eff !important;
-    padding: 12px 20px !important;
-}
-
-.test-proxy-btn:active {
-    background: #3a8eef !important;
-}
-
 /* Loading Indicator */
 .loading {
     position: fixed;
@@ -476,140 +467,28 @@ body {
     background: rgba(255, 68, 88, 0.7);
 }
 
-/* Proxy Test Modal */
-.proxy-test-modal {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.85);
-    z-index: 200;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
-    backdrop-filter: blur(5px);
+/* Image Loading Indicator */
+.image-loading {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 40px;
+    height: 40px;
+    border: 3px solid rgba(255, 255, 255, 0.1);
+    border-top: 3px solid #ff4458;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    z-index: 1;
 }
 
-.proxy-test-content {
-    background: rgba(20, 20, 25, 0.98);
-    border: 2px solid rgba(74, 158, 255, 0.5);
-    border-radius: 12px;
-    max-width: 600px;
-    width: 100%;
-    max-height: 80vh;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
+.media-wrapper img {
+    opacity: 0;
+    transition: opacity 0.3s ease-in;
 }
 
-.proxy-test-header {
-    padding: 20px;
-    border-bottom: 1px solid rgba(74, 158, 255, 0.3);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.proxy-test-header h3 {
-    margin: 0;
-    color: #4a9eff;
-    font-size: 18px;
-    font-weight: 600;
-}
-
-.proxy-modal-close {
-    background: transparent;
-    border: none;
-    color: #fff;
-    font-size: 32px;
-    cursor: pointer;
-    padding: 0;
-    width: 32px;
-    height: 32px;
-    line-height: 32px;
-    text-align: center;
-    transition: color 0.2s;
-}
-
-.proxy-modal-close:hover {
-    color: #4a9eff;
-}
-
-.proxy-test-body {
-    padding: 20px;
-    overflow-y: auto;
-    color: #fff;
-    font-family: 'Courier New', monospace;
-    font-size: 13px;
-    line-height: 1.6;
-}
-
-.proxy-result {
-    padding: 12px;
-    margin-bottom: 10px;
-    border-radius: 6px;
-    border-left: 4px solid;
-    background: rgba(255, 255, 255, 0.05);
-}
-
-.proxy-result.testing {
-    border-left-color: #ffa500;
-}
-
-.proxy-result.success {
-    border-left-color: #4caf50;
-    background: rgba(76, 175, 80, 0.1);
-}
-
-.proxy-result.failed {
-    border-left-color: #f44336;
-    background: rgba(244, 67, 54, 0.1);
-}
-
-.proxy-result-name {
-    font-weight: bold;
-    margin-bottom: 5px;
-    color: #4a9eff;
-}
-
-.proxy-result-url {
-    font-size: 11px;
-    color: #999;
-    margin-bottom: 5px;
-    word-break: break-all;
-}
-
-.proxy-result-status {
-    font-size: 12px;
-}
-
-.proxy-result-time {
-    font-size: 11px;
-    color: #999;
-    margin-top: 5px;
-}
-
-.proxy-use-btn {
-    margin-top: 8px;
-    padding: 6px 12px;
-    background: #4a9eff;
-    border: none;
-    border-radius: 4px;
-    color: #fff;
-    cursor: pointer;
-    font-size: 11px;
-    font-weight: 600;
-    transition: background 0.2s;
-}
-
-.proxy-use-btn:hover {
-    background: #3a8eef;
-}
-
-.proxy-use-btn:active {
-    transform: scale(0.95);
+.media-wrapper img.loaded {
+    opacity: 1;
 }
 
 /* Responsive adjustments */
@@ -633,27 +512,6 @@ body {
         padding: 10px 18px;
         font-size: 15px;
         flex: 1;
-    }
-
-    .test-proxy-btn {
-        flex: 1;
-    }
-
-    .proxy-test-modal {
-        padding: 10px;
-    }
-
-    .proxy-test-content {
-        max-height: 90vh;
-    }
-
-    .proxy-test-header h3 {
-        font-size: 16px;
-    }
-
-    .proxy-test-body {
-        padding: 15px;
-        font-size: 12px;
     }
 
     .post-title {
