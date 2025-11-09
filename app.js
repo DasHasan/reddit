@@ -6,11 +6,10 @@ class RedditViewer {
         this.isLoading = false;
         this.currentSubreddit = 'pics';
         this.after = null; // For pagination
-        this.observer = null; // IntersectionObserver for tracking visible post
         this.scrollTimeout = null; // For throttling scroll events
-        this.cleanupTimeout = null; // For debouncing cleanup
         this.isRendering = false; // Prevent concurrent renders
-        this.isScrolling = false; // Track if user is actively scrolling
+        this.itemHeight = window.innerHeight; // Each post is 100vh
+        this.renderBuffer = 2; // Render this many posts above/below viewport
 
         // JSONP configuration
         this.redditApiBase = 'https://www.reddit.com';
@@ -26,6 +25,16 @@ class RedditViewer {
         this.subredditInput = document.getElementById('subredditName');
         this.loadBtn = document.getElementById('loadBtn');
         this.navHint = document.getElementById('navHint');
+
+        // Create virtual scroll spacer to maintain scroll height
+        this.spacer = document.createElement('div');
+        this.spacer.style.position = 'absolute';
+        this.spacer.style.top = '0';
+        this.spacer.style.left = '0';
+        this.spacer.style.width = '1px';
+        this.spacer.style.height = '0px';
+        this.spacer.style.pointerEvents = 'none';
+        this.container.appendChild(this.spacer);
 
         // Event listeners
         this.loadBtn.addEventListener('click', () => this.loadSubreddit());
@@ -45,24 +54,21 @@ class RedditViewer {
             }
         });
 
-        // Scroll event for preloading more posts - throttled to avoid excessive calls
+        // Scroll event for virtual scrolling
         this.container.addEventListener('scroll', () => {
-            this.isScrolling = true;
-
             if (this.scrollTimeout) return;
             this.scrollTimeout = setTimeout(() => {
                 this.handleScroll();
                 this.scrollTimeout = null;
-
-                // Mark scrolling as stopped after a delay
-                setTimeout(() => {
-                    this.isScrolling = false;
-                }, 200);
-            }, 150); // Throttle to max once per 150ms
+            }, 50); // Faster response for virtual scroll
         }, { passive: true });
 
-        // Setup IntersectionObserver to track active post
-        this.setupIntersectionObserver();
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            this.itemHeight = window.innerHeight;
+            this.updateSpacerHeight();
+            this.renderVisiblePosts();
+        });
 
         // Hide nav hint after 3 seconds
         setTimeout(() => {
@@ -73,36 +79,29 @@ class RedditViewer {
         this.loadSubreddit();
     }
 
-    setupIntersectionObserver() {
-        // Observer to track which post is currently visible
-        const options = {
-            root: this.container,
-            threshold: [0.5], // Post is considered active when 50% visible
-            rootMargin: '0px'
-        };
+    updateSpacerHeight() {
+        // Set virtual scroll height based on total posts
+        const totalHeight = this.posts.length * this.itemHeight;
+        this.spacer.style.height = `${totalHeight}px`;
+        console.log(`[VIRTUAL] Spacer height: ${totalHeight}px for ${this.posts.length} posts`);
+    }
 
-        this.observer = new IntersectionObserver((entries) => {
-            // Find the most visible post from all intersecting entries
-            let mostVisiblePost = null;
-            let maxRatio = 0;
+    getVisibleRange() {
+        // Calculate which posts should be visible based on scroll position
+        const scrollTop = this.container.scrollTop;
+        const viewportHeight = this.container.clientHeight;
 
-            entries.forEach(entry => {
-                if (entry.isIntersecting && entry.intersectionRatio > maxRatio) {
-                    maxRatio = entry.intersectionRatio;
-                    mostVisiblePost = entry.target;
-                }
-            });
+        // Calculate current index from scroll position
+        const scrollIndex = Math.floor(scrollTop / this.itemHeight);
 
-            // Only update if we found a post that's more than 50% visible
-            if (mostVisiblePost && maxRatio >= 0.5) {
-                const postIndex = parseInt(mostVisiblePost.id.split('-')[1], 10);
-                if (postIndex !== this.currentIndex) {
-                    console.log(`[SCROLL] Active post changed: ${this.currentIndex} -> ${postIndex}`);
-                    this.currentIndex = postIndex;
-                    this.handlePostChange();
-                }
-            }
-        }, options);
+        // Determine visible range with buffer
+        const startIndex = Math.max(0, scrollIndex - this.renderBuffer);
+        const endIndex = Math.min(
+            this.posts.length - 1,
+            scrollIndex + Math.ceil(viewportHeight / this.itemHeight) + this.renderBuffer
+        );
+
+        return { startIndex, endIndex, scrollIndex };
     }
 
     scrollToPost(index) {
@@ -111,48 +110,35 @@ class RedditViewer {
             return;
         }
 
-        const postEl = document.getElementById(`post-${index}`);
-        if (postEl) {
-            postEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            console.log(`[NAV] Scrolling to post ${index}`);
-        } else {
-            console.log(`[NAV] Post ${index} not in DOM, rendering...`);
-            this.renderPosts();
-            setTimeout(() => {
-                const postEl = document.getElementById(`post-${index}`);
-                if (postEl) {
-                    postEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }
-            }, 100);
-        }
+        // Calculate exact scroll position for this post
+        const targetScrollTop = index * this.itemHeight;
+        this.container.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
+        console.log(`[NAV] Scrolling to post ${index} at ${targetScrollTop}px`);
     }
 
     handleScroll() {
-        // Preload more posts when near the end - increased threshold for smoother experience
-        // Only preload when we're within 10 posts of the end (more headroom for scrolling)
+        // Get current visible range
+        const { startIndex, endIndex, scrollIndex } = this.getVisibleRange();
+
+        // Update current index if it changed
+        if (scrollIndex !== this.currentIndex && scrollIndex < this.posts.length) {
+            const oldIndex = this.currentIndex;
+            this.currentIndex = scrollIndex;
+            console.log(`[SCROLL] Active post changed: ${oldIndex} -> ${scrollIndex}`);
+
+            // Handle video playback
+            this.pauseAllVideos();
+            this.playCurrentVideo();
+        }
+
+        // Render visible posts
+        this.renderVisiblePosts();
+
+        // Preload more posts when near the end
         if (this.currentIndex >= this.posts.length - 10 && this.after && !this.isLoading) {
-            console.log(`[SCROLL] Near end (post ${this.currentIndex}/${this.posts.length}), preloading more posts...`);
+            console.log(`[SCROLL] Near end (post ${this.currentIndex}/${this.posts.length}), preloading...`);
             this.fetchPosts();
         }
-    }
-
-    handlePostChange() {
-        // Called when the active post changes via IntersectionObserver
-        this.pauseAllVideos();
-        this.playCurrentVideo();
-
-        // Render surrounding posts if needed
-        this.renderPosts();
-
-        // Cleanup distant posts (debounced and only when not scrolling)
-        if (this.cleanupTimeout) clearTimeout(this.cleanupTimeout);
-        this.cleanupTimeout = setTimeout(() => {
-            // Don't cleanup while actively scrolling
-            if (!this.isScrolling) {
-                this.cleanupDistantPosts();
-            }
-            this.cleanupTimeout = null;
-        }, 1000); // Increased delay to 1s
     }
 
     async loadSubreddit() {
@@ -161,7 +147,9 @@ class RedditViewer {
         this.after = null;
         this.posts = [];
         this.currentIndex = 0;
-        this.container.innerHTML = '';
+
+        // Clear container but keep spacer
+        this.container.querySelectorAll('.post').forEach(post => post.remove());
         this.container.scrollTop = 0;
 
         await this.fetchPosts();
@@ -296,20 +284,14 @@ class RedditViewer {
                 return;
             }
 
-            // Preserve scroll position when adding new posts
-            const currentPost = document.getElementById(`post-${this.currentIndex}`);
-            const scrollOffset = currentPost ? this.container.scrollTop - currentPost.offsetTop : 0;
-
             this.posts = [...this.posts, ...mediaPosts];
             console.log(`[SUCCESS] Total posts loaded: ${this.posts.length}`);
-            this.renderPosts();
 
-            // Restore scroll position relative to the same post
-            if (currentPost) {
-                const newScrollTop = currentPost.offsetTop + scrollOffset;
-                this.container.scrollTop = newScrollTop;
-                console.log(`[SCROLL] Preserved position at post ${this.currentIndex}, offset: ${scrollOffset}px`);
-            }
+            // Update virtual scroll spacer
+            this.updateSpacerHeight();
+
+            // Render visible posts
+            this.renderVisiblePosts();
 
             this.hideLoading();
 
@@ -343,26 +325,36 @@ class RedditViewer {
         return Boolean(hasImage || hasVideo || hasGallery);
     }
 
-    renderPosts() {
+    renderVisiblePosts() {
         // Prevent concurrent renders
         if (this.isRendering) {
-            console.log('[RENDER] Already rendering, skipping...');
             return;
         }
 
         this.isRendering = true;
 
         try {
-            // Render visible posts + larger buffer for smooth scrolling (current +/- 5)
-            // This ensures posts exist before user scrolls to them
-            const RENDER_DISTANCE = 5;
-            const startIndex = Math.max(0, this.currentIndex - RENDER_DISTANCE);
-            const endIndex = Math.min(this.posts.length - 1, this.currentIndex + RENDER_DISTANCE);
+            const { startIndex, endIndex } = this.getVisibleRange();
 
+            // Track which posts should be visible
+            const visibleIndices = new Set();
+            for (let i = startIndex; i <= endIndex; i++) {
+                visibleIndices.add(i);
+            }
+
+            // Remove posts that are out of range
+            const existingPosts = this.container.querySelectorAll('.post');
+            existingPosts.forEach(post => {
+                const postIndex = parseInt(post.id.split('-')[1], 10);
+                if (!visibleIndices.has(postIndex)) {
+                    post.remove();
+                }
+            });
+
+            // Create missing posts in range
             let postsCreated = 0;
             for (let i = startIndex; i <= endIndex; i++) {
-                const existingPost = document.getElementById(`post-${i}`);
-                if (!existingPost) {
+                if (!document.getElementById(`post-${i}`)) {
                     this.createPostElement(this.posts[i], i);
                     postsCreated++;
                 }
@@ -380,6 +372,14 @@ class RedditViewer {
         const postEl = document.createElement('div');
         postEl.id = `post-${index}`;
         postEl.className = 'post';
+
+        // Position absolutely at calculated offset for virtual scrolling
+        const topOffset = index * this.itemHeight;
+        postEl.style.position = 'absolute';
+        postEl.style.top = `${topOffset}px`;
+        postEl.style.left = '0';
+        postEl.style.width = '100%';
+        postEl.style.height = `${this.itemHeight}px`;
 
         // Create media wrapper
         const mediaWrapper = document.createElement('div');
@@ -409,29 +409,10 @@ class RedditViewer {
         `;
         postEl.appendChild(postInfo);
 
-        // Insert post in correct position to maintain order
-        const allPosts = Array.from(this.container.querySelectorAll('.post'));
-        let insertBeforePost = null;
-        for (const existingPost of allPosts) {
-            const existingIndex = parseInt(existingPost.id.split('-')[1], 10);
-            if (existingIndex > index) {
-                insertBeforePost = existingPost;
-                break;
-            }
-        }
+        // Append to container (order doesn't matter with absolute positioning)
+        this.container.appendChild(postEl);
 
-        if (insertBeforePost) {
-            this.container.insertBefore(postEl, insertBeforePost);
-        } else {
-            this.container.appendChild(postEl);
-        }
-
-        // Observe this post for visibility tracking
-        if (this.observer) {
-            this.observer.observe(postEl);
-        }
-
-        console.log(`[CREATE] Post ${index} created`);
+        console.log(`[CREATE] Post ${index} created at ${topOffset}px`);
     }
 
     createImage(post, mediaWrapper) {
@@ -600,27 +581,6 @@ Possible causes:
     }
 
 
-    cleanupDistantPosts() {
-        // Keep more posts for smooth scrolling - must be larger than RENDER_DISTANCE
-        const KEEP_DISTANCE = 7;
-        let removedCount = 0;
-
-        this.container.querySelectorAll('.post').forEach((post) => {
-            const postIndex = parseInt(post.id.split('-')[1], 10);
-            if (Math.abs(postIndex - this.currentIndex) > KEEP_DISTANCE) {
-                console.log(`[CLEANUP] Removing post ${postIndex} (current: ${this.currentIndex})`);
-                if (this.observer) {
-                    this.observer.unobserve(post);
-                }
-                post.remove();
-                removedCount++;
-            }
-        });
-
-        if (removedCount > 0) {
-            console.log(`[CLEANUP] Removed ${removedCount} posts total`);
-        }
-    }
 
     pauseAllVideos() {
         this.container.querySelectorAll('video').forEach(video => video.pause());
