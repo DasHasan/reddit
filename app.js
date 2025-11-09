@@ -310,19 +310,22 @@ class RedditViewer {
     }
 
     isMediaPost(post) {
-        // Check if post has media content using modern syntax
-        const hasImage = post.post_hint === 'image' ||
-            post.url?.match(/\.(jpeg|jpg|gif|png|webp)$/i) ||
-            post.url?.includes('i.redd.it') ||
-            post.url?.includes('i.imgur.com');
+        // Be permissive - show all posts that have any kind of media URL
+        // This includes images, videos, gifs, galleries, and external links
 
-        const hasVideo = post.is_video ||
-            post.post_hint === 'hosted:video' ||
-            post.media?.reddit_video;
+        // Skip text-only self posts
+        if (post.is_self && !post.thumbnail) {
+            return false;
+        }
 
+        // Accept anything with a URL, preview, media, or gallery
+        const hasUrl = post.url && post.url !== post.permalink;
+        const hasPreview = post.preview?.images?.length > 0;
+        const hasMedia = post.media || post.secure_media;
         const hasGallery = post.is_gallery && post.gallery_data;
+        const hasThumbnail = post.thumbnail && post.thumbnail !== 'self' && post.thumbnail !== 'default';
 
-        return Boolean(hasImage || hasVideo || hasGallery);
+        return Boolean(hasUrl || hasPreview || hasMedia || hasGallery || hasThumbnail);
     }
 
     renderVisiblePosts() {
@@ -388,9 +391,18 @@ class RedditViewer {
         // Handle different media types
         if (post.is_gallery && post.gallery_data) {
             mediaWrapper.appendChild(this.createGallery(post));
-        } else if (post.is_video || (post.media && post.media.reddit_video)) {
+        } else if (post.is_video || (post.media?.reddit_video) || (post.secure_media?.reddit_video)) {
             mediaWrapper.appendChild(this.createVideo(post));
+        } else if (post.url?.match(/\.(gifv?)$/i)) {
+            // Handle GIFV and GIF URLs (convert gifv to video)
+            const gifUrl = post.url.replace(/\.gifv$/i, '.mp4');
+            if (post.url.endsWith('.gifv')) {
+                mediaWrapper.appendChild(this.createGifVideo(gifUrl));
+            } else {
+                this.createImage(post, mediaWrapper);
+            }
         } else {
+            // Default to image rendering (handles static images and animated gifs)
             this.createImage(post, mediaWrapper);
         }
 
@@ -421,8 +433,30 @@ class RedditViewer {
         spinner.className = 'image-loading';
         mediaWrapper.appendChild(spinner);
 
-        // Create image with modern optional chaining
-        const imageUrl = post.preview?.images?.[0]?.source?.url?.replace(/&amp;/g, '&') ?? post.url;
+        // Try to get the best quality image URL
+        // Prefer GIF variant for animated content, otherwise use source
+        let imageUrl;
+        const previewImage = post.preview?.images?.[0];
+
+        if (previewImage) {
+            // Check if there's a GIF variant (for animated content)
+            if (previewImage.variants?.gif?.source?.url) {
+                imageUrl = previewImage.variants.gif.source.url.replace(/&amp;/g, '&');
+            } else if (previewImage.variants?.mp4?.source?.url) {
+                // Some GIFs are provided as MP4, use video element
+                const videoUrl = previewImage.variants.mp4.source.url.replace(/&amp;/g, '&');
+                mediaWrapper.appendChild(this.createGifVideo(videoUrl));
+                spinner.remove();
+                return;
+            } else {
+                imageUrl = previewImage.source?.url?.replace(/&amp;/g, '&');
+            }
+        }
+
+        // Fallback to post URL
+        if (!imageUrl) {
+            imageUrl = post.url;
+        }
 
         const img = document.createElement('img');
         img.src = imageUrl;
@@ -473,6 +507,37 @@ Possible causes:
   • Video codec not supported
   • CORS restrictions on video source
   • Video file corrupted or unavailable`);
+                });
+            }
+        });
+
+        return video;
+    }
+
+    createGifVideo(videoUrl) {
+        // Create video element for GIFV/MP4 files (like Imgur gifv)
+        const video = document.createElement('video');
+        Object.assign(video, {
+            autoplay: true,
+            loop: true,
+            muted: true,
+            playsInline: true,
+            controls: false
+        });
+
+        const source = document.createElement('source');
+        source.src = videoUrl;
+        source.type = 'video/mp4';
+        video.appendChild(source);
+
+        // Play video when it becomes active
+        video.addEventListener('loadeddata', () => {
+            const postId = video.closest('.post')?.id;
+            const postIndex = postId ? parseInt(postId.split('-')[1]) : -1;
+
+            if (this.currentIndex === postIndex) {
+                video.play().catch((err) => {
+                    console.error(`[GIF VIDEO AUTOPLAY ERROR]: ${err.message}`);
                 });
             }
         });
