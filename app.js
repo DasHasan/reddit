@@ -4,14 +4,9 @@ class RedditViewer {
         this.posts = [];
         this.currentIndex = 0;
         this.isLoading = false;
-        this.isAnimating = false; // Prevent multiple swipes during animation
-        this.touchStartY = 0;
-        this.touchEndY = 0;
-        this.touchStartX = 0;
-        this.touchEndX = 0;
         this.currentSubreddit = 'pics';
         this.after = null; // For pagination
-        this.animationDuration = 300; // Match CSS animation duration
+        this.observer = null; // IntersectionObserver for tracking visible post
 
         // JSONP configuration
         this.redditApiBase = 'https://www.reddit.com';
@@ -34,18 +29,23 @@ class RedditViewer {
             if (e.key === 'Enter') this.loadSubreddit();
         });
 
-        // Touch events for swiping
-        this.container.addEventListener('touchstart', (e) => this.handleTouchStart(e), { passive: true });
-        this.container.addEventListener('touchend', (e) => this.handleTouchEnd(e), { passive: true });
-
-        // Keyboard navigation for desktop testing
+        // Keyboard navigation - smooth scroll to next/prev post
         document.addEventListener('keydown', (e) => {
-            // Only handle arrow keys if not already animating
-            if (!this.isAnimating) {
-                if (e.key === 'ArrowDown') this.nextPost();
-                if (e.key === 'ArrowUp') this.prevPost();
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                this.scrollToPost(this.currentIndex + 1);
+            }
+            if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                this.scrollToPost(this.currentIndex - 1);
             }
         });
+
+        // Scroll event for preloading more posts
+        this.container.addEventListener('scroll', () => this.handleScroll(), { passive: true });
+
+        // Setup IntersectionObserver to track active post
+        this.setupIntersectionObserver();
 
         // Hide nav hint after 3 seconds
         setTimeout(() => {
@@ -56,6 +56,76 @@ class RedditViewer {
         this.loadSubreddit();
     }
 
+    setupIntersectionObserver() {
+        // Observer to track which post is currently visible
+        const options = {
+            root: this.container,
+            threshold: 0.5, // Post is considered active when 50% visible
+            rootMargin: '0px'
+        };
+
+        this.observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const postIndex = parseInt(entry.target.id.split('-')[1], 10);
+                    if (postIndex !== this.currentIndex) {
+                        console.log(`[SCROLL] Active post changed: ${this.currentIndex} -> ${postIndex}`);
+                        this.currentIndex = postIndex;
+                        this.handlePostChange();
+                    }
+                }
+            });
+        }, options);
+    }
+
+    scrollToPost(index) {
+        if (index < 0 || index >= this.posts.length) {
+            console.log(`[NAV] Index ${index} out of bounds`);
+            return;
+        }
+
+        const postEl = document.getElementById(`post-${index}`);
+        if (postEl) {
+            postEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            console.log(`[NAV] Scrolling to post ${index}`);
+        } else {
+            console.log(`[NAV] Post ${index} not in DOM, rendering...`);
+            this.renderPosts();
+            setTimeout(() => {
+                const postEl = document.getElementById(`post-${index}`);
+                if (postEl) {
+                    postEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            }, 100);
+        }
+    }
+
+    handleScroll() {
+        // Preload more posts when near the end
+        const scrollTop = this.container.scrollTop;
+        const scrollHeight = this.container.scrollHeight;
+        const clientHeight = this.container.clientHeight;
+        const scrollPercentage = (scrollTop + clientHeight) / scrollHeight;
+
+        if (scrollPercentage > 0.8 && this.after && !this.isLoading) {
+            console.log('[SCROLL] Near end, preloading more posts...');
+            this.fetchPosts();
+        }
+
+        // Cleanup distant posts
+        this.cleanupDistantPosts();
+    }
+
+    handlePostChange() {
+        // Called when the active post changes via IntersectionObserver
+        this.pauseAllVideos();
+        this.playCurrentVideo();
+        this.cleanupDistantPosts();
+
+        // Ensure surrounding posts are rendered
+        this.renderPosts();
+    }
+
     async loadSubreddit() {
         const subreddit = this.subredditInput.value.trim() || 'pics';
         this.currentSubreddit = subreddit;
@@ -63,6 +133,7 @@ class RedditViewer {
         this.posts = [];
         this.currentIndex = 0;
         this.container.innerHTML = '';
+        this.container.scrollTop = 0;
 
         await this.fetchPosts();
     }
@@ -199,7 +270,6 @@ class RedditViewer {
             this.posts = [...this.posts, ...mediaPosts];
             console.log(`[SUCCESS] Total posts loaded: ${this.posts.length}`);
             this.renderPosts();
-            this.updatePostPositions(); // Position the posts after rendering
             this.hideLoading();
 
         } catch (error) {
@@ -233,33 +303,23 @@ class RedditViewer {
     }
 
     renderPosts() {
-        // Render only visible posts for performance (current, prev, next)
-        const startIndex = Math.max(0, this.currentIndex - 1);
-        const endIndex = Math.min(this.posts.length - 1, this.currentIndex + 1);
+        // Render visible posts + buffer for smooth scrolling (current +/- 3)
+        const RENDER_DISTANCE = 3;
+        const startIndex = Math.max(0, this.currentIndex - RENDER_DISTANCE);
+        const endIndex = Math.min(this.posts.length - 1, this.currentIndex + RENDER_DISTANCE);
 
         for (let i = startIndex; i <= endIndex; i++) {
-            if (!document.getElementById(`post-${i}`)) {
+            const existingPost = document.getElementById(`post-${i}`);
+            if (!existingPost) {
                 this.createPostElement(this.posts[i], i);
             }
         }
-
-        // Don't call updatePostPositions here - it creates infinite recursion
-        // updatePostPositions already calls renderPosts at the end
     }
 
     createPostElement(post, index) {
         const postEl = document.createElement('div');
         postEl.id = `post-${index}`;
-
-        // Set initial position based on index relative to currentIndex
-        // Important: Set class BEFORE adding to DOM to avoid flash
-        if (index === this.currentIndex) {
-            postEl.className = 'post active';
-        } else if (index < this.currentIndex) {
-            postEl.className = 'post prev';
-        } else {
-            postEl.className = 'post next';
-        }
+        postEl.className = 'post';
 
         // Create media wrapper
         const mediaWrapper = document.createElement('div');
@@ -289,8 +349,29 @@ class RedditViewer {
         `;
         postEl.appendChild(postInfo);
 
-        this.container.appendChild(postEl);
-        console.log(`[CREATE] Post ${index} created with class: ${postEl.className}`);
+        // Insert post in correct position to maintain order
+        const allPosts = Array.from(this.container.querySelectorAll('.post'));
+        let insertBeforePost = null;
+        for (const existingPost of allPosts) {
+            const existingIndex = parseInt(existingPost.id.split('-')[1], 10);
+            if (existingIndex > index) {
+                insertBeforePost = existingPost;
+                break;
+            }
+        }
+
+        if (insertBeforePost) {
+            this.container.insertBefore(postEl, insertBeforePost);
+        } else {
+            this.container.appendChild(postEl);
+        }
+
+        // Observe this post for visibility tracking
+        if (this.observer) {
+            this.observer.observe(postEl);
+        }
+
+        console.log(`[CREATE] Post ${index} created`);
     }
 
     createImage(post, mediaWrapper) {
@@ -458,170 +539,20 @@ Possible causes:
         return galleryContainer;
     }
 
-    handleTouchStart(e) {
-        this.touchStartY = e.touches[0].clientY;
-        this.touchStartX = e.touches[0].clientX;
-        console.log(`[TOUCH] Start - Y: ${this.touchStartY.toFixed(0)}`);
-    }
-
-    handleTouchEnd(e) {
-        this.touchEndY = e.changedTouches[0].clientY;
-        this.touchEndX = e.changedTouches[0].clientX;
-        console.log(`[TOUCH] End - Y: ${this.touchEndY.toFixed(0)}`);
-        this.handleSwipe();
-    }
-
-    handleSwipe() {
-        if (this.isAnimating) {
-            console.log('[SWIPE] Blocked - animation in progress');
-            return;
-        }
-
-        const swipeDistanceY = this.touchStartY - this.touchEndY;
-        const swipeDistanceX = Math.abs(this.touchStartX - this.touchEndX);
-        const MIN_SWIPE_DISTANCE = 50;
-        const MAX_HORIZONTAL_DRIFT = 100;
-
-        console.log(`[SWIPE] Distance Y: ${swipeDistanceY.toFixed(0)}px, X: ${swipeDistanceX.toFixed(0)}px`);
-
-        // Only handle vertical swipes (ignore if too much horizontal movement)
-        if (swipeDistanceX > MAX_HORIZONTAL_DRIFT) {
-            console.log('[SWIPE] Ignored - too much horizontal movement (gallery swipe)');
-            return;
-        }
-
-        if (Math.abs(swipeDistanceY) > MIN_SWIPE_DISTANCE) {
-            if (swipeDistanceY > 0) {
-                console.log('[SWIPE] Up detected - going to next post');
-                this.nextPost();
-            } else {
-                console.log('[SWIPE] Down detected - going to previous post');
-                this.prevPost();
-            }
-        } else {
-            console.log('[SWIPE] Too short - ignored');
-        }
-    }
-
-    nextPost() {
-        if (this.isAnimating) {
-            console.log('[NAV] Blocked - animation in progress');
-            return;
-        }
-
-        if (this.currentIndex >= this.posts.length - 1) {
-            console.log('[NAV] Already at last post');
-            return;
-        }
-
-        console.log(`[NAV] Next: ${this.currentIndex} -> ${this.currentIndex + 1}`);
-        this.isAnimating = true;
-
-        const oldIndex = this.currentIndex;
-        this.currentIndex++;
-
-        // Ensure next post exists in DOM
-        if (!document.getElementById(`post-${this.currentIndex}`)) {
-            this.renderPosts();
-        }
-
-        this.performAnimation(oldIndex, this.currentIndex, 'next');
-
-        // Load more posts if near the end
-        if (this.currentIndex >= this.posts.length - 3 && this.after && !this.isLoading) {
-            console.log('[NAV] Preloading more posts...');
-            this.fetchPosts();
-        }
-    }
-
-    prevPost() {
-        if (this.isAnimating) {
-            console.log('[NAV] Blocked - animation in progress');
-            return;
-        }
-
-        if (this.currentIndex <= 0) {
-            console.log('[NAV] Already at first post');
-            return;
-        }
-
-        console.log(`[NAV] Prev: ${this.currentIndex} -> ${this.currentIndex - 1}`);
-        this.isAnimating = true;
-
-        const oldIndex = this.currentIndex;
-        this.currentIndex--;
-
-        // Ensure previous post exists in DOM
-        if (!document.getElementById(`post-${this.currentIndex}`)) {
-            this.renderPosts();
-        }
-
-        this.performAnimation(oldIndex, this.currentIndex, 'prev');
-    }
-
-    performAnimation(fromIndex, toIndex, direction) {
-        const fromPost = document.getElementById(`post-${fromIndex}`);
-        const toPost = document.getElementById(`post-${toIndex}`);
-
-        if (!fromPost || !toPost) {
-            console.error(`[ANIMATION] Missing posts - from:${Boolean(fromPost)} to:${Boolean(toPost)}`);
-            this.isAnimating = false;
-            return;
-        }
-
-        console.log(`[ANIMATION] Animating ${direction}: ${fromIndex} -> ${toIndex}`);
-
-        // Pause videos
-        this.pauseAllVideos();
-
-        // Animate using classes
-        const isNext = direction === 'next';
-        fromPost.classList.remove('active');
-        fromPost.classList.add(isNext ? 'prev' : 'next');
-
-        toPost.classList.remove(isNext ? 'next' : 'prev');
-        toPost.classList.add('active');
-
-        // Release lock and cleanup after animation
-        const BUFFER_MS = 50;
-        setTimeout(() => {
-            this.isAnimating = false;
-            this.playCurrentVideo();
-            this.cleanupDistantPosts();
-            console.log('[ANIMATION] Complete - ready for next interaction');
-        }, this.animationDuration + BUFFER_MS);
-    }
 
     cleanupDistantPosts() {
-        const KEEP_DISTANCE = 2;
+        // Keep more posts for smooth scrolling
+        const KEEP_DISTANCE = 4;
         this.container.querySelectorAll('.post').forEach((post) => {
             const postIndex = parseInt(post.id.split('-')[1], 10);
             if (Math.abs(postIndex - this.currentIndex) > KEEP_DISTANCE) {
                 console.log(`[CLEANUP] Removing post ${postIndex}`);
+                if (this.observer) {
+                    this.observer.unobserve(post);
+                }
                 post.remove();
             }
         });
-    }
-
-    updatePostPositions() {
-        // Update positions without animation (used after loading)
-        this.container.querySelectorAll('.post').forEach((post) => {
-            const postIndex = parseInt(post.id.split('-')[1], 10);
-
-            // Remove all position classes
-            post.classList.remove('active', 'prev', 'next');
-
-            // Add correct class
-            if (postIndex === this.currentIndex) {
-                post.classList.add('active');
-            } else if (postIndex < this.currentIndex) {
-                post.classList.add('prev');
-            } else {
-                post.classList.add('next');
-            }
-        });
-
-        this.renderPosts();
     }
 
     pauseAllVideos() {
