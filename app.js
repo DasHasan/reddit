@@ -271,7 +271,7 @@ class RedditViewer {
         } else if (post.is_video || (post.media && post.media.reddit_video)) {
             mediaWrapper.appendChild(this.createVideo(post));
         } else {
-            mediaWrapper.appendChild(this.createImage(post));
+            this.createImage(post, mediaWrapper);
         }
 
         postEl.appendChild(mediaWrapper);
@@ -293,21 +293,11 @@ class RedditViewer {
         console.log(`[CREATE] Post ${index} created with class: ${postEl.className}`);
     }
 
-    createImage(post) {
-        const container = document.createElement('div');
-        Object.assign(container.style, {
-            position: 'relative',
-            width: '100%',
-            height: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-        });
-
-        // Create loading spinner
+    createImage(post, mediaWrapper) {
+        // Create loading spinner - positioned relative to mediaWrapper
         const spinner = document.createElement('div');
         spinner.className = 'image-loading';
-        container.appendChild(spinner);
+        mediaWrapper.appendChild(spinner);
 
         // Create image with modern optional chaining
         const imageUrl = post.preview?.images?.[0]?.source?.url?.replace(/&amp;/g, '&') ?? post.url;
@@ -326,9 +316,7 @@ class RedditViewer {
         img.onload = handleLoad;
         img.onerror = handleLoad;
 
-        container.appendChild(img);
-
-        return container;
+        mediaWrapper.appendChild(img);
     }
 
     createVideo(post) {
