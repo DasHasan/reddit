@@ -217,19 +217,19 @@ class RedditViewer {
     }
 
     isMediaPost(post) {
-        // Check if post has media content
+        // Check if post has media content using modern syntax
         const hasImage = post.post_hint === 'image' ||
-                        (post.url && (post.url.match(/\.(jpeg|jpg|gif|png|webp)$/i) ||
-                         post.url.includes('i.redd.it') ||
-                         post.url.includes('i.imgur.com')));
+            post.url?.match(/\.(jpeg|jpg|gif|png|webp)$/i) ||
+            post.url?.includes('i.redd.it') ||
+            post.url?.includes('i.imgur.com');
 
         const hasVideo = post.is_video ||
-                        post.post_hint === 'hosted:video' ||
-                        (post.media && post.media.reddit_video);
+            post.post_hint === 'hosted:video' ||
+            post.media?.reddit_video;
 
         const hasGallery = post.is_gallery && post.gallery_data;
 
-        return hasImage || hasVideo || hasGallery;
+        return Boolean(hasImage || hasVideo || hasGallery);
     }
 
     renderPosts() {
@@ -295,42 +295,36 @@ class RedditViewer {
 
     createImage(post) {
         const container = document.createElement('div');
-        container.style.position = 'relative';
-        container.style.width = '100%';
-        container.style.height = '100%';
-        container.style.display = 'flex';
-        container.style.alignItems = 'center';
-        container.style.justifyContent = 'center';
+        Object.assign(container.style, {
+            position: 'relative',
+            width: '100%',
+            height: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+        });
 
         // Create loading spinner
         const spinner = document.createElement('div');
         spinner.className = 'image-loading';
         container.appendChild(spinner);
 
-        // Create image
+        // Create image with modern optional chaining
+        const imageUrl = post.preview?.images?.[0]?.source?.url?.replace(/&amp;/g, '&') ?? post.url;
+
         const img = document.createElement('img');
-        let imageUrl = post.url;
-
-        // Handle different image sources
-        if (post.preview && post.preview.images && post.preview.images[0]) {
-            imageUrl = post.preview.images[0].source.url.replace(/&amp;/g, '&');
-        }
-
         img.src = imageUrl;
         img.alt = post.title;
         img.loading = 'lazy';
 
         // Hide spinner and show image when loaded
-        img.onload = () => {
+        const handleLoad = () => {
             spinner.remove();
             img.classList.add('loaded');
         };
 
-        // Remove spinner on error too
-        img.onerror = () => {
-            spinner.remove();
-            img.classList.add('loaded');
-        };
+        img.onload = handleLoad;
+        img.onerror = handleLoad;
 
         container.appendChild(img);
 
@@ -339,36 +333,36 @@ class RedditViewer {
 
     createVideo(post) {
         const video = document.createElement('video');
-        video.autoplay = true;
-        video.loop = true;
-        video.muted = true;
-        video.playsInline = true;
-        video.controls = false;
+        Object.assign(video, {
+            autoplay: true,
+            loop: true,
+            muted: true,
+            playsInline: true,
+            controls: false
+        });
 
         const source = document.createElement('source');
-
-        if (post.media && post.media.reddit_video) {
-            source.src = post.media.reddit_video.fallback_url;
-        } else if (post.secure_media && post.secure_media.reddit_video) {
-            source.src = post.secure_media.reddit_video.fallback_url;
-        }
-
+        // Use optional chaining and nullish coalescing
+        source.src = post.media?.reddit_video?.fallback_url ?? post.secure_media?.reddit_video?.fallback_url ?? '';
         source.type = 'video/mp4';
         video.appendChild(source);
 
         // Play video when it becomes active
         video.addEventListener('loadeddata', () => {
-            if (this.currentIndex === parseInt(video.closest('.post').id.split('-')[1])) {
-                video.play().catch(e => {
-                    console.error(`[VIDEO AUTOPLAY ERROR]\n` +
-                        `Error: ${e.name} - ${e.message}\n` +
-                        `Video Source: ${source.src}\n` +
-                        `Post Index: ${this.currentIndex}\n` +
-                        `Possible causes:\n` +
-                        `  • Browser autoplay policy (user interaction required)\n` +
-                        `  • Video codec not supported\n` +
-                        `  • CORS restrictions on video source\n` +
-                        `  • Video file corrupted or unavailable`);
+            const postId = video.closest('.post')?.id;
+            const postIndex = postId ? parseInt(postId.split('-')[1]) : -1;
+
+            if (this.currentIndex === postIndex) {
+                video.play().catch(({ name, message }) => {
+                    console.error(`[VIDEO AUTOPLAY ERROR]
+Error: ${name} - ${message}
+Video Source: ${source.src}
+Post Index: ${this.currentIndex}
+Possible causes:
+  • Browser autoplay policy (user interaction required)
+  • Video codec not supported
+  • CORS restrictions on video source
+  • Video file corrupted or unavailable`);
                 });
             }
         });
@@ -383,40 +377,36 @@ class RedditViewer {
         const gallerySlides = document.createElement('div');
         gallerySlides.className = 'gallery-slides';
 
-        const galleryData = post.gallery_data.items;
-        const mediaMetadata = post.media_metadata;
+        const { items: galleryData } = post.gallery_data;
+        const { media_metadata: mediaMetadata } = post;
 
         let currentSlide = 0;
 
         galleryData.forEach((item, idx) => {
             const slide = document.createElement('div');
             slide.className = 'gallery-slide';
-            // Ensure proper positioning context for spinner
             slide.style.position = 'relative';
 
-            const media = mediaMetadata[item.media_id];
-            if (media && media.s) {
+            const media = mediaMetadata?.[item.media_id];
+            if (media?.s) {
                 // Create loading spinner
                 const spinner = document.createElement('div');
                 spinner.className = 'image-loading';
                 slide.appendChild(spinner);
 
                 const img = document.createElement('img');
-                img.src = media.s.u ? media.s.u.replace(/&amp;/g, '&') : media.s.gif;
+                img.src = media.s.u?.replace(/&amp;/g, '&') ?? media.s.gif;
                 img.alt = `Gallery image ${idx + 1}`;
                 img.loading = 'lazy';
 
                 // Hide spinner and show image when loaded
-                img.onload = () => {
+                const handleLoad = () => {
                     spinner.remove();
                     img.classList.add('loaded');
                 };
 
-                // Remove spinner on error too
-                img.onerror = () => {
-                    spinner.remove();
-                    img.classList.add('loaded');
-                };
+                img.onload = handleLoad;
+                img.onerror = handleLoad;
 
                 slide.appendChild(img);
             }
@@ -447,15 +437,16 @@ class RedditViewer {
 
             // Horizontal swipe for gallery
             let galleryTouchStartX = 0;
-            galleryContainer.addEventListener('touchstart', (e) => {
+            const handleTouchStart = (e) => {
                 galleryTouchStartX = e.touches[0].clientX;
-            }, { passive: true });
+            };
 
-            galleryContainer.addEventListener('touchend', (e) => {
+            const handleTouchEnd = (e) => {
                 const galleryTouchEndX = e.changedTouches[0].clientX;
                 const diff = galleryTouchStartX - galleryTouchEndX;
+                const SWIPE_THRESHOLD = 50;
 
-                if (Math.abs(diff) > 50) {
+                if (Math.abs(diff) > SWIPE_THRESHOLD) {
                     if (diff > 0 && currentSlide < galleryData.length - 1) {
                         currentSlide++;
                     } else if (diff < 0 && currentSlide > 0) {
@@ -463,17 +454,17 @@ class RedditViewer {
                     }
 
                     gallerySlides.style.transform = `translateX(-${currentSlide * 100}%)`;
-
-                    // Update counter
                     galleryCounter.textContent = `${currentSlide + 1}/${galleryData.length}`;
 
                     // Update dots
-                    const dots = galleryNav.querySelectorAll('.gallery-dot');
-                    dots.forEach((dot, idx) => {
+                    galleryNav.querySelectorAll('.gallery-dot').forEach((dot, idx) => {
                         dot.classList.toggle('active', idx === currentSlide);
                     });
                 }
-            }, { passive: true });
+            };
+
+            galleryContainer.addEventListener('touchstart', handleTouchStart, { passive: true });
+            galleryContainer.addEventListener('touchend', handleTouchEnd, { passive: true });
         }
 
         return galleryContainer;
@@ -500,17 +491,18 @@ class RedditViewer {
 
         const swipeDistanceY = this.touchStartY - this.touchEndY;
         const swipeDistanceX = Math.abs(this.touchStartX - this.touchEndX);
-        const minSwipeDistance = 50;
+        const MIN_SWIPE_DISTANCE = 50;
+        const MAX_HORIZONTAL_DRIFT = 100;
 
         console.log(`[SWIPE] Distance Y: ${swipeDistanceY.toFixed(0)}px, X: ${swipeDistanceX.toFixed(0)}px`);
 
         // Only handle vertical swipes (ignore if too much horizontal movement)
-        if (swipeDistanceX > 100) {
+        if (swipeDistanceX > MAX_HORIZONTAL_DRIFT) {
             console.log('[SWIPE] Ignored - too much horizontal movement (gallery swipe)');
             return;
         }
 
-        if (Math.abs(swipeDistanceY) > minSwipeDistance) {
+        if (Math.abs(swipeDistanceY) > MIN_SWIPE_DISTANCE) {
             if (swipeDistanceY > 0) {
                 console.log('[SWIPE] Up detected - going to next post');
                 this.nextPost();
@@ -584,7 +576,7 @@ class RedditViewer {
         const toPost = document.getElementById(`post-${toIndex}`);
 
         if (!fromPost || !toPost) {
-            console.error(`[ANIMATION] Missing posts - from:${!!fromPost} to:${!!toPost}`);
+            console.error(`[ANIMATION] Missing posts - from:${Boolean(fromPost)} to:${Boolean(toPost)}`);
             this.isAnimating = false;
             return;
         }
@@ -595,36 +587,28 @@ class RedditViewer {
         this.pauseAllVideos();
 
         // Animate using classes
-        if (direction === 'next') {
-            // Moving to next post (swipe up)
-            fromPost.classList.remove('active');
-            fromPost.classList.add('prev');
+        const isNext = direction === 'next';
+        fromPost.classList.remove('active');
+        fromPost.classList.add(isNext ? 'prev' : 'next');
 
-            toPost.classList.remove('next');
-            toPost.classList.add('active');
-        } else {
-            // Moving to previous post (swipe down)
-            fromPost.classList.remove('active');
-            fromPost.classList.add('next');
-
-            toPost.classList.remove('prev');
-            toPost.classList.add('active');
-        }
+        toPost.classList.remove(isNext ? 'next' : 'prev');
+        toPost.classList.add('active');
 
         // Release lock and cleanup after animation
+        const BUFFER_MS = 50;
         setTimeout(() => {
             this.isAnimating = false;
             this.playCurrentVideo();
             this.cleanupDistantPosts();
-            console.log(`[ANIMATION] Complete - ready for next interaction`);
-        }, this.animationDuration + 50); // Add small buffer
+            console.log('[ANIMATION] Complete - ready for next interaction');
+        }, this.animationDuration + BUFFER_MS);
     }
 
     cleanupDistantPosts() {
-        const posts = this.container.querySelectorAll('.post');
-        posts.forEach((post) => {
-            const postIndex = parseInt(post.id.split('-')[1]);
-            if (Math.abs(postIndex - this.currentIndex) > 2) {
+        const KEEP_DISTANCE = 2;
+        this.container.querySelectorAll('.post').forEach((post) => {
+            const postIndex = parseInt(post.id.split('-')[1], 10);
+            if (Math.abs(postIndex - this.currentIndex) > KEEP_DISTANCE) {
                 console.log(`[CLEANUP] Removing post ${postIndex}`);
                 post.remove();
             }
@@ -633,10 +617,8 @@ class RedditViewer {
 
     updatePostPositions() {
         // Update positions without animation (used after loading)
-        const posts = this.container.querySelectorAll('.post');
-
-        posts.forEach((post) => {
-            const postIndex = parseInt(post.id.split('-')[1]);
+        this.container.querySelectorAll('.post').forEach((post) => {
+            const postIndex = parseInt(post.id.split('-')[1], 10);
 
             // Remove all position classes
             post.classList.remove('active', 'prev', 'next');
@@ -655,37 +637,34 @@ class RedditViewer {
     }
 
     pauseAllVideos() {
-        const videos = this.container.querySelectorAll('video');
-        videos.forEach(video => {
-            video.pause();
-        });
+        this.container.querySelectorAll('video').forEach(video => video.pause());
     }
 
     playCurrentVideo() {
         const currentPost = document.getElementById(`post-${this.currentIndex}`);
-        if (currentPost) {
-            const video = currentPost.querySelector('video');
-            if (video) {
-                video.currentTime = 0;
-                console.log(`[VIDEO] Attempting to play post ${this.currentIndex}`);
-                video.play().catch(e => {
-                    console.error(`[VIDEO PLAY ERROR]\n` +
-                        `Error: ${e.name} - ${e.message}\n` +
-                        `Post Index: ${this.currentIndex}\n` +
-                        `Video Source: ${video.src || video.querySelector('source')?.src || 'unknown'}\n` +
-                        `Video Ready State: ${video.readyState} (0=HAVE_NOTHING, 1=HAVE_METADATA, 2=HAVE_CURRENT_DATA, 3=HAVE_FUTURE_DATA, 4=HAVE_ENOUGH_DATA)\n` +
-                        `Video Network State: ${video.networkState} (0=NETWORK_EMPTY, 1=NETWORK_IDLE, 2=NETWORK_LOADING, 3=NETWORK_NO_SOURCE)\n` +
-                        `Video Duration: ${video.duration}s\n` +
-                        `Video Paused: ${video.paused}\n` +
-                        `Video Muted: ${video.muted}\n` +
-                        `Possible causes:\n` +
-                        `  • Browser autoplay policy blocking playback\n` +
-                        `  • Video not fully loaded (readyState < 3)\n` +
-                        `  • Video source URL invalid or inaccessible\n` +
-                        `  • CORS policy blocking video access\n` +
-                        `  • Video codec not supported by browser`);
-                });
-            }
+        const video = currentPost?.querySelector('video');
+
+        if (video) {
+            video.currentTime = 0;
+            console.log(`[VIDEO] Attempting to play post ${this.currentIndex}`);
+            video.play().catch(({ name, message }) => {
+                const videoSource = video.src || video.querySelector('source')?.src || 'unknown';
+                console.error(`[VIDEO PLAY ERROR]
+Error: ${name} - ${message}
+Post Index: ${this.currentIndex}
+Video Source: ${videoSource}
+Video Ready State: ${video.readyState} (0=HAVE_NOTHING, 1=HAVE_METADATA, 2=HAVE_CURRENT_DATA, 3=HAVE_FUTURE_DATA, 4=HAVE_ENOUGH_DATA)
+Video Network State: ${video.networkState} (0=NETWORK_EMPTY, 1=NETWORK_IDLE, 2=NETWORK_LOADING, 3=NETWORK_NO_SOURCE)
+Video Duration: ${video.duration}s
+Video Paused: ${video.paused}
+Video Muted: ${video.muted}
+Possible causes:
+  • Browser autoplay policy blocking playback
+  • Video not fully loaded (readyState < 3)
+  • Video source URL invalid or inaccessible
+  • CORS policy blocking video access
+  • Video codec not supported by browser`);
+            });
         }
     }
 
@@ -699,8 +678,7 @@ class RedditViewer {
 
     showError(message, stackTrace = null) {
         // Remove any existing error messages
-        const existingErrors = document.querySelectorAll('.error-message');
-        existingErrors.forEach(err => err.remove());
+        document.querySelectorAll('.error-message').forEach(err => err.remove());
 
         const errorEl = document.createElement('div');
         errorEl.className = 'error-message';
@@ -714,18 +692,23 @@ class RedditViewer {
             .split('\n')
             .map(line => {
                 const trimmed = line.trim();
+                if (!trimmed) return '';
+
                 if (trimmed.startsWith('•')) {
                     return `<div class="error-bullet">${this.escapeHtml(trimmed)}</div>`;
-                } else if (trimmed.includes(':')) {
+                }
+
+                if (trimmed.includes(':')) {
                     const [key, ...valueParts] = trimmed.split(':');
                     const value = valueParts.join(':');
                     return `<div class="error-line"><strong>${this.escapeHtml(key)}:</strong>${this.escapeHtml(value)}</div>`;
-                } else if (trimmed.startsWith('[') && trimmed.includes(']')) {
-                    return `<div class="error-header">${this.escapeHtml(trimmed)}</div>`;
-                } else if (trimmed) {
-                    return `<div class="error-line">${this.escapeHtml(trimmed)}</div>`;
                 }
-                return '';
+
+                if (trimmed.startsWith('[') && trimmed.includes(']')) {
+                    return `<div class="error-header">${this.escapeHtml(trimmed)}</div>`;
+                }
+
+                return `<div class="error-line">${this.escapeHtml(trimmed)}</div>`;
             })
             .join('');
 
@@ -734,33 +717,28 @@ class RedditViewer {
         // Add stack trace if provided
         if (stackTrace) {
             const stackHeader = document.createElement('div');
-            stackHeader.className = 'error-header';
+            Object.assign(stackHeader, {
+                className: 'error-header',
+                textContent: 'STACK TRACE'
+            });
             stackHeader.style.marginTop = '15px';
-            stackHeader.textContent = 'STACK TRACE';
             errorContent.appendChild(stackHeader);
 
             const stackContainer = document.createElement('div');
             stackContainer.className = 'error-stack';
 
             // Format stack trace with line numbers
-            const stackLines = stackTrace.split('\n');
-            stackLines.forEach((line, index) => {
+            stackTrace.split('\n').forEach((line, index) => {
                 const stackLine = document.createElement('div');
                 stackLine.className = 'error-stack-line';
 
                 // Highlight function names and file paths
-                let formattedLine = this.escapeHtml(line);
-
-                // Highlight "at" keyword
-                formattedLine = formattedLine.replace(/at /g, '<span class="stack-at">at</span> ');
-
-                // Highlight function names (text before parentheses)
-                formattedLine = formattedLine.replace(/at <span class="stack-at">at<\/span> ([^\s(]+)/g,
-                    'at <span class="stack-at">at</span> <span class="stack-function">$1</span>');
-
-                // Highlight file paths and line numbers
-                formattedLine = formattedLine.replace(/\(([^)]+):(\d+):(\d+)\)/g,
-                    '(<span class="stack-file">$1:<span class="stack-linenum">$2:$3</span></span>)');
+                let formattedLine = this.escapeHtml(line)
+                    .replace(/at /g, '<span class="stack-at">at</span> ')
+                    .replace(/at <span class="stack-at">at<\/span> ([^\s(]+)/g,
+                        'at <span class="stack-at">at</span> <span class="stack-function">$1</span>')
+                    .replace(/\(([^)]+):(\d+):(\d+)\)/g,
+                        '(<span class="stack-file">$1:<span class="stack-linenum">$2:$3</span></span>)');
 
                 stackLine.innerHTML = `<span class="stack-linenum">${(index + 1).toString().padStart(2, '0')}</span> ${formattedLine}`;
                 stackContainer.appendChild(stackLine);
@@ -785,16 +763,15 @@ class RedditViewer {
         const copyBtn = document.createElement('button');
         copyBtn.className = 'error-copy';
         copyBtn.innerHTML = '📋 Copy';
-        copyBtn.onclick = () => {
-            navigator.clipboard.writeText(fullErrorText).then(() => {
+        copyBtn.onclick = async () => {
+            try {
+                await navigator.clipboard.writeText(fullErrorText);
                 copyBtn.innerHTML = '✓ Copied';
-                setTimeout(() => {
-                    copyBtn.innerHTML = '📋 Copy';
-                }, 2000);
-            }).catch(err => {
+                setTimeout(() => copyBtn.innerHTML = '📋 Copy', 2000);
+            } catch (err) {
                 console.error('Failed to copy to clipboard:', err);
                 copyBtn.innerHTML = '✗ Failed';
-            });
+            }
         };
         errorEl.appendChild(copyBtn);
 
@@ -806,11 +783,8 @@ class RedditViewer {
         }
 
         // Auto-dismiss after 20 seconds for stack traces (up from 15s)
-        setTimeout(() => {
-            if (errorEl.parentNode) {
-                errorEl.remove();
-            }
-        }, stackTrace ? 20000 : 15000);
+        const AUTO_DISMISS_MS = stackTrace ? 20000 : 15000;
+        setTimeout(() => errorEl.remove(), AUTO_DISMISS_MS);
     }
 
     escapeHtml(text) {
@@ -829,9 +803,7 @@ class RedditViewer {
     }
 }
 
-// Initialize app when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
-    const viewer = new RedditViewer();
-    // Expose to global scope for button onclick handlers
-    window.redditViewer = viewer;
-});
+// Initialize app (defer script ensures DOM is ready)
+const viewer = new RedditViewer();
+// Expose to global scope if needed for debugging
+window.redditViewer = viewer;
