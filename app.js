@@ -424,8 +424,14 @@ class RedditViewer {
 
         galleryContainer.appendChild(gallerySlides);
 
-        // Add gallery navigation dots
+        // Add gallery navigation dots and counter for multiple images
         if (galleryData.length > 1) {
+            // Add counter indicator
+            const galleryCounter = document.createElement('div');
+            galleryCounter.className = 'gallery-counter';
+            galleryCounter.textContent = `1/${galleryData.length}`;
+            galleryContainer.appendChild(galleryCounter);
+
             const galleryNav = document.createElement('div');
             galleryNav.className = 'gallery-nav';
 
@@ -455,6 +461,9 @@ class RedditViewer {
                     }
 
                     gallerySlides.style.transform = `translateX(-${currentSlide * 100}%)`;
+
+                    // Update counter
+                    galleryCounter.textContent = `${currentSlide + 1}/${galleryData.length}`;
 
                     // Update dots
                     const dots = galleryNav.querySelectorAll('.gallery-dot');
