@@ -10,6 +10,7 @@ class RedditViewer {
         this.scrollTimeout = null; // For throttling scroll events
         this.cleanupTimeout = null; // For debouncing cleanup
         this.isRendering = false; // Prevent concurrent renders
+        this.isScrolling = false; // Track if user is actively scrolling
 
         // JSONP configuration
         this.redditApiBase = 'https://www.reddit.com';
@@ -46,10 +47,17 @@ class RedditViewer {
 
         // Scroll event for preloading more posts - throttled to avoid excessive calls
         this.container.addEventListener('scroll', () => {
+            this.isScrolling = true;
+
             if (this.scrollTimeout) return;
             this.scrollTimeout = setTimeout(() => {
                 this.handleScroll();
                 this.scrollTimeout = null;
+
+                // Mark scrolling as stopped after a delay
+                setTimeout(() => {
+                    this.isScrolling = false;
+                }, 200);
             }, 150); // Throttle to max once per 150ms
         }, { passive: true });
 
@@ -120,15 +128,10 @@ class RedditViewer {
     }
 
     handleScroll() {
-        // Preload more posts when near the end
-        const scrollTop = this.container.scrollTop;
-        const scrollHeight = this.container.scrollHeight;
-        const clientHeight = this.container.clientHeight;
-        const scrollPercentage = (scrollTop + clientHeight) / scrollHeight;
-
-        // Only preload when we're within 5 posts of the end
-        if (this.currentIndex >= this.posts.length - 5 && this.after && !this.isLoading) {
-            console.log('[SCROLL] Near end, preloading more posts...');
+        // Preload more posts when near the end - increased threshold for smoother experience
+        // Only preload when we're within 10 posts of the end (more headroom for scrolling)
+        if (this.currentIndex >= this.posts.length - 10 && this.after && !this.isLoading) {
+            console.log(`[SCROLL] Near end (post ${this.currentIndex}/${this.posts.length}), preloading more posts...`);
             this.fetchPosts();
         }
     }
@@ -141,12 +144,15 @@ class RedditViewer {
         // Render surrounding posts if needed
         this.renderPosts();
 
-        // Cleanup distant posts (debounced to avoid too frequent cleanups)
+        // Cleanup distant posts (debounced and only when not scrolling)
         if (this.cleanupTimeout) clearTimeout(this.cleanupTimeout);
         this.cleanupTimeout = setTimeout(() => {
-            this.cleanupDistantPosts();
+            // Don't cleanup while actively scrolling
+            if (!this.isScrolling) {
+                this.cleanupDistantPosts();
+            }
             this.cleanupTimeout = null;
-        }, 500);
+        }, 1000); // Increased delay to 1s
     }
 
     async loadSubreddit() {
@@ -290,9 +296,21 @@ class RedditViewer {
                 return;
             }
 
+            // Preserve scroll position when adding new posts
+            const currentPost = document.getElementById(`post-${this.currentIndex}`);
+            const scrollOffset = currentPost ? this.container.scrollTop - currentPost.offsetTop : 0;
+
             this.posts = [...this.posts, ...mediaPosts];
             console.log(`[SUCCESS] Total posts loaded: ${this.posts.length}`);
             this.renderPosts();
+
+            // Restore scroll position relative to the same post
+            if (currentPost) {
+                const newScrollTop = currentPost.offsetTop + scrollOffset;
+                this.container.scrollTop = newScrollTop;
+                console.log(`[SCROLL] Preserved position at post ${this.currentIndex}, offset: ${scrollOffset}px`);
+            }
+
             this.hideLoading();
 
         } catch (error) {
@@ -335,8 +353,9 @@ class RedditViewer {
         this.isRendering = true;
 
         try {
-            // Render visible posts + buffer for smooth scrolling (current +/- 3)
-            const RENDER_DISTANCE = 3;
+            // Render visible posts + larger buffer for smooth scrolling (current +/- 5)
+            // This ensures posts exist before user scrolls to them
+            const RENDER_DISTANCE = 5;
             const startIndex = Math.max(0, this.currentIndex - RENDER_DISTANCE);
             const endIndex = Math.min(this.posts.length - 1, this.currentIndex + RENDER_DISTANCE);
 
@@ -582,18 +601,25 @@ Possible causes:
 
 
     cleanupDistantPosts() {
-        // Keep more posts for smooth scrolling
-        const KEEP_DISTANCE = 4;
+        // Keep more posts for smooth scrolling - must be larger than RENDER_DISTANCE
+        const KEEP_DISTANCE = 7;
+        let removedCount = 0;
+
         this.container.querySelectorAll('.post').forEach((post) => {
             const postIndex = parseInt(post.id.split('-')[1], 10);
             if (Math.abs(postIndex - this.currentIndex) > KEEP_DISTANCE) {
-                console.log(`[CLEANUP] Removing post ${postIndex}`);
+                console.log(`[CLEANUP] Removing post ${postIndex} (current: ${this.currentIndex})`);
                 if (this.observer) {
                     this.observer.unobserve(post);
                 }
                 post.remove();
+                removedCount++;
             }
         });
+
+        if (removedCount > 0) {
+            console.log(`[CLEANUP] Removed ${removedCount} posts total`);
+        }
     }
 
     pauseAllVideos() {
