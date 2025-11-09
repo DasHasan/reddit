@@ -391,6 +391,8 @@ class RedditViewer {
         galleryData.forEach((item, idx) => {
             const slide = document.createElement('div');
             slide.className = 'gallery-slide';
+            // Ensure proper positioning context for spinner
+            slide.style.position = 'relative';
 
             const media = mediaMetadata[item.media_id];
             if (media && media.s) {
