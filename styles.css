@@ -36,6 +36,14 @@ body {
     backdrop-filter: blur(10px);
     max-width: 600px;
     margin: 0 auto;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+/* Hide UI when tapped */
+body.ui-hidden .subreddit-input {
+    transform: translateY(-100px);
+    opacity: 0;
+    pointer-events: none;
 }
 
 .subreddit-input input {
@@ -90,10 +98,15 @@ body {
     text-align: center;
     z-index: 50;
     display: none;
+    transition: opacity 0.3s ease;
 }
 
 .loading.active {
     display: block;
+}
+
+body.ui-hidden .loading {
+    opacity: 0;
 }
 
 .spinner {
@@ -233,6 +246,12 @@ body {
     border: 1.5px solid rgba(255, 255, 255, 0.3);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
     letter-spacing: 0.5px;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+body.ui-hidden .gallery-counter {
+    transform: translateX(100px);
+    opacity: 0;
 }
 
 /* Post Info Overlay */
@@ -246,6 +265,13 @@ body {
     padding: 20px 15px 15px;
     border-radius: 12px;
     pointer-events: none;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+/* Hide post info when UI is hidden */
+body.ui-hidden .post-info {
+    transform: translateY(150px);
+    opacity: 0;
 }
 
 .post-title {
@@ -284,6 +310,11 @@ body {
     backdrop-filter: blur(10px);
     animation: fadeInOut 3s ease-in-out;
     pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+
+body.ui-hidden .nav-hint {
+    opacity: 0;
 }
 
 @keyframes fadeInOut {

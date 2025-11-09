@@ -10,6 +10,7 @@ class RedditViewer {
         this.isRendering = false; // Prevent concurrent renders
         this.itemHeight = window.innerHeight; // Each post is 100vh
         this.renderBuffer = 2; // Render this many posts above/below viewport
+        this.uiVisible = true; // Track UI visibility state
 
         // JSONP configuration
         this.redditApiBase = 'https://www.reddit.com';
@@ -77,6 +78,12 @@ class RedditViewer {
 
         // Load initial subreddit
         this.loadSubreddit();
+    }
+
+    toggleUI() {
+        this.uiVisible = !this.uiVisible;
+        document.body.classList.toggle('ui-hidden', !this.uiVisible);
+        console.log(`[UI] UI ${this.uiVisible ? 'shown' : 'hidden'}`);
     }
 
     updateSpacerHeight() {
@@ -420,6 +427,15 @@ class RedditViewer {
             </div>
         `;
         postEl.appendChild(postInfo);
+
+        // Add tap/click to toggle UI
+        postEl.addEventListener('click', (e) => {
+            // Don't toggle if clicking on gallery nav or other interactive elements
+            if (e.target.closest('.gallery-nav') || e.target.closest('.gallery-counter')) {
+                return;
+            }
+            this.toggleUI();
+        });
 
         // Append to container (order doesn't matter with absolute positioning)
         this.container.appendChild(postEl);
