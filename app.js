@@ -7,6 +7,9 @@ class RedditViewer {
         this.currentSubreddit = 'pics';
         this.after = null; // For pagination
         this.observer = null; // IntersectionObserver for tracking visible post
+        this.scrollTimeout = null; // For throttling scroll events
+        this.cleanupTimeout = null; // For debouncing cleanup
+        this.isRendering = false; // Prevent concurrent renders
 
         // JSONP configuration
         this.redditApiBase = 'https://www.reddit.com';
@@ -41,8 +44,14 @@ class RedditViewer {
             }
         });
 
-        // Scroll event for preloading more posts
-        this.container.addEventListener('scroll', () => this.handleScroll(), { passive: true });
+        // Scroll event for preloading more posts - throttled to avoid excessive calls
+        this.container.addEventListener('scroll', () => {
+            if (this.scrollTimeout) return;
+            this.scrollTimeout = setTimeout(() => {
+                this.handleScroll();
+                this.scrollTimeout = null;
+            }, 150); // Throttle to max once per 150ms
+        }, { passive: true });
 
         // Setup IntersectionObserver to track active post
         this.setupIntersectionObserver();
@@ -60,21 +69,31 @@ class RedditViewer {
         // Observer to track which post is currently visible
         const options = {
             root: this.container,
-            threshold: 0.5, // Post is considered active when 50% visible
+            threshold: [0.5], // Post is considered active when 50% visible
             rootMargin: '0px'
         };
 
         this.observer = new IntersectionObserver((entries) => {
+            // Find the most visible post from all intersecting entries
+            let mostVisiblePost = null;
+            let maxRatio = 0;
+
             entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    const postIndex = parseInt(entry.target.id.split('-')[1], 10);
-                    if (postIndex !== this.currentIndex) {
-                        console.log(`[SCROLL] Active post changed: ${this.currentIndex} -> ${postIndex}`);
-                        this.currentIndex = postIndex;
-                        this.handlePostChange();
-                    }
+                if (entry.isIntersecting && entry.intersectionRatio > maxRatio) {
+                    maxRatio = entry.intersectionRatio;
+                    mostVisiblePost = entry.target;
                 }
             });
+
+            // Only update if we found a post that's more than 50% visible
+            if (mostVisiblePost && maxRatio >= 0.5) {
+                const postIndex = parseInt(mostVisiblePost.id.split('-')[1], 10);
+                if (postIndex !== this.currentIndex) {
+                    console.log(`[SCROLL] Active post changed: ${this.currentIndex} -> ${postIndex}`);
+                    this.currentIndex = postIndex;
+                    this.handlePostChange();
+                }
+            }
         }, options);
     }
 
@@ -107,23 +126,27 @@ class RedditViewer {
         const clientHeight = this.container.clientHeight;
         const scrollPercentage = (scrollTop + clientHeight) / scrollHeight;
 
-        if (scrollPercentage > 0.8 && this.after && !this.isLoading) {
+        // Only preload when we're within 5 posts of the end
+        if (this.currentIndex >= this.posts.length - 5 && this.after && !this.isLoading) {
             console.log('[SCROLL] Near end, preloading more posts...');
             this.fetchPosts();
         }
-
-        // Cleanup distant posts
-        this.cleanupDistantPosts();
     }
 
     handlePostChange() {
         // Called when the active post changes via IntersectionObserver
         this.pauseAllVideos();
         this.playCurrentVideo();
-        this.cleanupDistantPosts();
 
-        // Ensure surrounding posts are rendered
+        // Render surrounding posts if needed
         this.renderPosts();
+
+        // Cleanup distant posts (debounced to avoid too frequent cleanups)
+        if (this.cleanupTimeout) clearTimeout(this.cleanupTimeout);
+        this.cleanupTimeout = setTimeout(() => {
+            this.cleanupDistantPosts();
+            this.cleanupTimeout = null;
+        }, 500);
     }
 
     async loadSubreddit() {
@@ -303,16 +326,34 @@ class RedditViewer {
     }
 
     renderPosts() {
-        // Render visible posts + buffer for smooth scrolling (current +/- 3)
-        const RENDER_DISTANCE = 3;
-        const startIndex = Math.max(0, this.currentIndex - RENDER_DISTANCE);
-        const endIndex = Math.min(this.posts.length - 1, this.currentIndex + RENDER_DISTANCE);
+        // Prevent concurrent renders
+        if (this.isRendering) {
+            console.log('[RENDER] Already rendering, skipping...');
+            return;
+        }
 
-        for (let i = startIndex; i <= endIndex; i++) {
-            const existingPost = document.getElementById(`post-${i}`);
-            if (!existingPost) {
-                this.createPostElement(this.posts[i], i);
+        this.isRendering = true;
+
+        try {
+            // Render visible posts + buffer for smooth scrolling (current +/- 3)
+            const RENDER_DISTANCE = 3;
+            const startIndex = Math.max(0, this.currentIndex - RENDER_DISTANCE);
+            const endIndex = Math.min(this.posts.length - 1, this.currentIndex + RENDER_DISTANCE);
+
+            let postsCreated = 0;
+            for (let i = startIndex; i <= endIndex; i++) {
+                const existingPost = document.getElementById(`post-${i}`);
+                if (!existingPost) {
+                    this.createPostElement(this.posts[i], i);
+                    postsCreated++;
+                }
             }
+
+            if (postsCreated > 0) {
+                console.log(`[RENDER] Created ${postsCreated} new posts (${startIndex}-${endIndex})`);
+            }
+        } finally {
+            this.isRendering = false;
         }
     }
 
