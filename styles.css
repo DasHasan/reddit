@@ -118,6 +118,7 @@ body {
     position: relative;
     overflow-y: scroll;
     overflow-x: hidden;
+    scroll-snap-type: y mandatory;
     -webkit-overflow-scrolling: touch;
     -webkit-tap-highlight-color: transparent;
 }
@@ -130,6 +131,8 @@ body {
     align-items: center;
     justify-content: center;
     background: #000;
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
     /* Force GPU acceleration on mobile */
     transform: translateZ(0);
     -webkit-transform: translateZ(0);
