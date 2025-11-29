@@ -25,6 +25,7 @@ class RedditViewer {
         this.loading = document.getElementById('loading');
         this.subredditInput = document.getElementById('subredditName');
         this.loadBtn = document.getElementById('loadBtn');
+        this.fullscreenBtn = document.getElementById('fullscreenBtn');
         this.navHint = document.getElementById('navHint');
 
         // Create virtual scroll spacer to maintain scroll height
@@ -41,6 +42,18 @@ class RedditViewer {
         this.loadBtn.addEventListener('click', () => this.loadSubreddit());
         this.subredditInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') this.loadSubreddit();
+        });
+
+        // Fullscreen toggle
+        this.fullscreenBtn.addEventListener('click', () => this.toggleFullscreen());
+
+        // Listen for fullscreen changes (including keyboard shortcuts like F11, ESC)
+        document.addEventListener('fullscreenchange', () => {
+            if (document.fullscreenElement) {
+                console.log('[FULLSCREEN] Fullscreen activated (via any method)');
+            } else {
+                console.log('[FULLSCREEN] Fullscreen deactivated (via any method)');
+            }
         });
 
         // Keyboard navigation - smooth scroll to next/prev post
@@ -64,11 +77,25 @@ class RedditViewer {
             }, 50); // Faster response for virtual scroll
         }, { passive: true });
 
-        // Handle window resize
+        // Handle window resize (including fullscreen changes)
         window.addEventListener('resize', () => {
+            const oldHeight = this.itemHeight;
             this.itemHeight = window.innerHeight;
+
+            console.log(`[RESIZE] Viewport height changed: ${oldHeight}px -> ${this.itemHeight}px`);
+
+            // Update spacer for new total height
             this.updateSpacerHeight();
+
+            // Update all existing posts' heights and positions
+            this.updateAllPostDimensions();
+
+            // Re-render visible posts with new dimensions
             this.renderVisiblePosts();
+
+            // Maintain scroll position to current post
+            const targetScrollTop = this.currentIndex * this.itemHeight;
+            this.container.scrollTop = targetScrollTop;
         });
 
         // Hide nav hint after 3 seconds
@@ -93,11 +120,51 @@ class RedditViewer {
         console.log(`[UI] UI ${this.uiVisible ? 'shown' : 'hidden'}`);
     }
 
+    toggleFullscreen() {
+        if (!document.fullscreenElement) {
+            // Enter fullscreen
+            document.documentElement.requestFullscreen().then(() => {
+                console.log('[FULLSCREEN] Entered fullscreen mode');
+                this.fullscreenBtn.innerHTML = '⛶'; // Keep same icon or change to exit icon
+            }).catch((err) => {
+                console.error(`[FULLSCREEN] Error entering fullscreen: ${err.message}`);
+            });
+        } else {
+            // Exit fullscreen
+            document.exitFullscreen().then(() => {
+                console.log('[FULLSCREEN] Exited fullscreen mode');
+                this.fullscreenBtn.innerHTML = '⛶';
+            }).catch((err) => {
+                console.error(`[FULLSCREEN] Error exiting fullscreen: ${err.message}`);
+            });
+        }
+    }
+
     updateSpacerHeight() {
         // Set virtual scroll height based on total posts
         const totalHeight = this.posts.length * this.itemHeight;
         this.spacer.style.height = `${totalHeight}px`;
         console.log(`[VIRTUAL] Spacer height: ${totalHeight}px for ${this.posts.length} posts`);
+    }
+
+    updateAllPostDimensions() {
+        // Update dimensions and positions of all existing posts in DOM
+        const existingPosts = this.container.querySelectorAll('.post');
+        let updatedCount = 0;
+
+        existingPosts.forEach(postEl => {
+            const index = parseInt(postEl.id.split('-')[1], 10);
+            if (!isNaN(index)) {
+                const topOffset = index * this.itemHeight;
+                postEl.style.top = `${topOffset}px`;
+                postEl.style.height = `${this.itemHeight}px`;
+                postEl.style.minHeight = `${this.itemHeight}px`;
+                postEl.style.maxHeight = `${this.itemHeight}px`;
+                updatedCount++;
+            }
+        });
+
+        console.log(`[RESIZE] Updated dimensions for ${updatedCount} posts`);
     }
 
     getVisibleRange() {
