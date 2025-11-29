@@ -9,9 +9,11 @@ A mobile-first web app that displays Reddit media posts in a TikTok-like vertica
 - 👆 **Swipe Navigation** - Vertical swipe up/down to navigate between posts
 - 🎬 **Auto-Playing Videos** - Videos auto-play with smooth transitions
 - 🖼️ **Gallery Support** - Horizontal swipe for gallery posts
+- 🔗 **Embedded Content** - Support for YouTube, Twitter, and other embeddable links
 - ⚡ **Performance Optimized** - Lazy loading, DOM recycling, no external dependencies
 - 🔄 **Infinite Scroll** - Automatically loads more posts as you browse
 - 🎯 **Any Subreddit** - Enter any subreddit name to browse its media
+- 🔖 **URL State** - Bookmark and share specific subreddits via URL parameters
 
 ## Usage
 
@@ -19,7 +21,11 @@ A mobile-first web app that displays Reddit media posts in a TikTok-like vertica
 2. Enter a subreddit name (e.g., "pics", "videos", "aww")
 3. Click "Load" or press Enter
 4. Swipe up/down to navigate between posts
-5. Swipe left/right on gallery posts to view multiple images
+5. For gallery posts:
+   - Swipe left/right to view multiple images
+   - Or use the arrow buttons on the sides
+
+**Tip**: You can also load a specific subreddit directly by adding `?r=subreddit` to the URL (e.g., `?r=videos`). The URL updates as you search, so you can bookmark or share specific subreddits.
 
 ### Keyboard Navigation (Desktop)
 
@@ -40,9 +46,12 @@ https://www.reddit.com/r/{subreddit}.json
 ```
 
 It filters posts to show only media content:
-- Images (direct links, i.redd.it, imgur)
-- Videos (Reddit hosted videos)
+- Images (direct links, i.redd.it, imgur, animated GIFs)
+- Videos (Reddit hosted videos, GIFV)
 - Gallery posts (multiple images)
+- Embedded content (YouTube, Twitter, TikTok, etc.)
+
+The current subreddit is stored in the URL (`?r=subreddit`) so you can bookmark, share, or reload with the same subreddit.
 
 ## Performance
 
