@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "description": "TikTok-style Reddit media viewer",
   "scripts": {
-    "start": "npx http-server -p 8000 -o"
+    "start": "npx http-server -p 8000 -o",
+    "start:network": "npx http-server -p 8000 -a 0.0.0.0"
   },
   "keywords": ["reddit", "viewer", "tiktok"],
   "author": "",

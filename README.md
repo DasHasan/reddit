@@ -8,8 +8,9 @@ A mobile-first web app that displays Reddit media posts in a TikTok-like vertica
 - 🎥 **Media Only** - Displays images, videos, and gallery posts (filters out text posts)
 - 👆 **Swipe Navigation** - Vertical swipe up/down to navigate between posts
 - 🎬 **Auto-Playing Videos** - Videos auto-play with smooth transitions
-- 🖼️ **Gallery Support** - Horizontal swipe for gallery posts
+- 🖼️ **Gallery Support** - Horizontal swipe for gallery posts with arrow navigation
 - 🔗 **Embedded Content** - Support for YouTube, Twitter, and other embeddable links
+- ⛶ **Fullscreen Mode** - Immersive fullscreen viewing with a single click
 - ⚡ **Performance Optimized** - Lazy loading, DOM recycling, no external dependencies
 - 🔄 **Infinite Scroll** - Automatically loads more posts as you browse
 - 🎯 **Any Subreddit** - Enter any subreddit name to browse its media
