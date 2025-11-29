@@ -76,7 +76,14 @@ class RedditViewer {
             if (this.navHint) this.navHint.style.display = 'none';
         }, 3000);
 
-        // Load initial subreddit
+        // Load subreddit from URL parameter or default
+        const urlParams = new URLSearchParams(window.location.search);
+        const subredditFromUrl = urlParams.get('r');
+        if (subredditFromUrl) {
+            this.subredditInput.value = subredditFromUrl;
+            console.log(`[INIT] Loading subreddit from URL: r/${subredditFromUrl}`);
+        }
+
         this.loadSubreddit();
     }
 
@@ -154,6 +161,12 @@ class RedditViewer {
         this.after = null;
         this.posts = [];
         this.currentIndex = 0;
+
+        // Update URL parameter
+        const url = new URL(window.location);
+        url.searchParams.set('r', subreddit);
+        window.history.pushState({}, '', url);
+        console.log(`[URL] Updated URL to include r/${subreddit}`);
 
         // Clear container but keep spacer
         this.container.querySelectorAll('.post').forEach(post => post.remove());
@@ -383,13 +396,20 @@ class RedditViewer {
         postEl.id = `post-${index}`;
         postEl.className = 'post';
 
+        // Log the full Reddit post object for debugging
+        console.log(`[POST ${index}] Full Reddit post object:`, post);
+
         // Position absolutely at calculated offset for virtual scrolling
         const topOffset = index * this.itemHeight;
         postEl.style.position = 'absolute';
         postEl.style.top = `${topOffset}px`;
         postEl.style.left = '0';
+        postEl.style.right = '0';
         postEl.style.width = '100%';
         postEl.style.height = `${this.itemHeight}px`;
+        postEl.style.minHeight = `${this.itemHeight}px`;
+        postEl.style.maxHeight = `${this.itemHeight}px`;
+        postEl.style.overflow = 'hidden';
 
         // Create media wrapper
         const mediaWrapper = document.createElement('div');
@@ -408,6 +428,9 @@ class RedditViewer {
             } else {
                 this.createImage(post, mediaWrapper);
             }
+        } else if (this.isEmbeddableUrl(post)) {
+            // Handle external embeddable URLs (YouTube, Twitter, etc.) or posts with embed data
+            mediaWrapper.appendChild(this.createEmbed(post));
         } else {
             // Default to image rendering (handles static images and animated gifs)
             this.createImage(post, mediaWrapper);
@@ -430,8 +453,12 @@ class RedditViewer {
 
         // Add tap/click to toggle UI
         postEl.addEventListener('click', (e) => {
-            // Don't toggle if clicking on gallery nav or other interactive elements
-            if (e.target.closest('.gallery-nav') || e.target.closest('.gallery-counter')) {
+            // Don't toggle if clicking on gallery nav, embeds, or other interactive elements
+            if (e.target.closest('.gallery-nav') ||
+                e.target.closest('.gallery-counter') ||
+                e.target.closest('.gallery-arrow') ||
+                e.target.closest('.embed-container') ||
+                e.target.closest('.embed-link')) {
                 return;
             }
             this.toggleUI();
@@ -452,15 +479,18 @@ class RedditViewer {
         // Try to get the best quality image URL
         // Prefer GIF variant for animated content, otherwise use source
         let imageUrl;
+        let mediaType = 'static image';
         const previewImage = post.preview?.images?.[0];
 
         if (previewImage) {
             // Check if there's a GIF variant (for animated content)
             if (previewImage.variants?.gif?.source?.url) {
                 imageUrl = previewImage.variants.gif.source.url.replace(/&amp;/g, '&');
+                mediaType = 'animated GIF';
             } else if (previewImage.variants?.mp4?.source?.url) {
                 // Some GIFs are provided as MP4, use video element
                 const videoUrl = previewImage.variants.mp4.source.url.replace(/&amp;/g, '&');
+                console.log(`[MEDIA] Loading animated GIF as MP4: ${videoUrl}`);
                 mediaWrapper.appendChild(this.createGifVideo(videoUrl));
                 spinner.remove();
                 return;
@@ -473,6 +503,8 @@ class RedditViewer {
         if (!imageUrl) {
             imageUrl = post.url;
         }
+
+        console.log(`[MEDIA] Loading ${mediaType}: ${imageUrl}`);
 
         const img = document.createElement('img');
         img.src = imageUrl;
@@ -507,6 +539,8 @@ class RedditViewer {
         source.type = 'video/mp4';
         video.appendChild(source);
 
+        console.log(`[MEDIA] Loading Reddit video: ${source.src}`);
+
         // Play video when it becomes active
         video.addEventListener('loadeddata', () => {
             const postId = video.closest('.post')?.id;
@@ -532,6 +566,8 @@ Possible causes:
 
     createGifVideo(videoUrl) {
         // Create video element for GIFV/MP4 files (like Imgur gifv)
+        console.log(`[MEDIA] Loading GIFV/MP4: ${videoUrl}`);
+
         const video = document.createElement('video');
         Object.assign(video, {
             autoplay: true,
@@ -570,6 +606,8 @@ Possible causes:
 
         const { items: galleryData } = post.gallery_data;
         const { media_metadata: mediaMetadata } = post;
+
+        console.log(`[MEDIA] Loading gallery with ${galleryData.length} images`);
 
         let currentSlide = 0;
 
@@ -626,6 +664,54 @@ Possible causes:
 
             galleryContainer.appendChild(galleryNav);
 
+            // Function to update gallery UI
+            const updateGallery = () => {
+                gallerySlides.style.transform = `translateX(-${currentSlide * 100}%)`;
+                galleryCounter.textContent = `${currentSlide + 1}/${galleryData.length}`;
+
+                // Update dots
+                galleryNav.querySelectorAll('.gallery-dot').forEach((dot, idx) => {
+                    dot.classList.toggle('active', idx === currentSlide);
+                });
+
+                // Update arrow visibility
+                leftArrow.style.opacity = currentSlide > 0 ? '1' : '0.3';
+                leftArrow.style.pointerEvents = currentSlide > 0 ? 'auto' : 'none';
+                rightArrow.style.opacity = currentSlide < galleryData.length - 1 ? '1' : '0.3';
+                rightArrow.style.pointerEvents = currentSlide < galleryData.length - 1 ? 'auto' : 'none';
+            };
+
+            // Add navigation arrows
+            const leftArrow = document.createElement('button');
+            leftArrow.className = 'gallery-arrow gallery-arrow-left';
+            leftArrow.innerHTML = '‹';
+            leftArrow.setAttribute('aria-label', 'Previous image');
+            leftArrow.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (currentSlide > 0) {
+                    currentSlide--;
+                    updateGallery();
+                }
+            });
+
+            const rightArrow = document.createElement('button');
+            rightArrow.className = 'gallery-arrow gallery-arrow-right';
+            rightArrow.innerHTML = '›';
+            rightArrow.setAttribute('aria-label', 'Next image');
+            rightArrow.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (currentSlide < galleryData.length - 1) {
+                    currentSlide++;
+                    updateGallery();
+                }
+            });
+
+            galleryContainer.appendChild(leftArrow);
+            galleryContainer.appendChild(rightArrow);
+
+            // Initial arrow state
+            updateGallery();
+
             // Horizontal swipe for gallery
             let galleryTouchStartX = 0;
             const handleTouchStart = (e) => {
@@ -644,13 +730,7 @@ Possible causes:
                         currentSlide--;
                     }
 
-                    gallerySlides.style.transform = `translateX(-${currentSlide * 100}%)`;
-                    galleryCounter.textContent = `${currentSlide + 1}/${galleryData.length}`;
-
-                    // Update dots
-                    galleryNav.querySelectorAll('.gallery-dot').forEach((dot, idx) => {
-                        dot.classList.toggle('active', idx === currentSlide);
-                    });
+                    updateGallery();
                 }
             };
 
@@ -661,7 +741,160 @@ Possible causes:
         return galleryContainer;
     }
 
+    isEmbeddableUrl(post) {
+        // Check if Reddit provides embed data
+        if (post.media_embed?.content || post.secure_media_embed?.content) {
+            return true;
+        }
 
+        const url = post.url;
+        if (!url) return false;
+
+        // Skip if it's a direct image or video file
+        if (url.match(/\.(jpg|jpeg|png|gif|gifv|webp|mp4|webm)$/i)) {
+            return false;
+        }
+
+        // Skip Reddit internal links
+        if (url.includes('reddit.com') || url.includes('redd.it')) {
+            return false;
+        }
+
+        // Check for embeddable domains/patterns
+        const embeddablePatterns = [
+            /youtube\.com\/watch/i,
+            /youtu\.be\//i,
+            /vimeo\.com/i,
+            /twitter\.com/i,
+            /x\.com/i,
+            /streamable\.com/i,
+            /gfycat\.com/i,
+            /imgur\.com\/(?!.*\.(jpg|jpeg|png|gif|gifv|webp)$)/i, // Imgur pages but not direct images
+            /tiktok\.com/i,
+            /instagram\.com/i,
+            /soundcloud\.com/i,
+            /spotify\.com/i,
+            /twitch\.tv/i
+        ];
+
+        return embeddablePatterns.some(pattern => pattern.test(url));
+    }
+
+    extractEmbedSrc(encodedHtml) {
+        // Extract src attribute from encoded HTML string
+        // Example: '&lt;iframe src="https://..." ...' → 'https://...'
+
+        // Match src="..." or src='...' in the encoded HTML
+        const srcMatch = encodedHtml.match(/src=["']([^"']+)["']/);
+        if (!srcMatch) return null;
+
+        // Decode HTML entities in the URL (&amp; → &, etc.)
+        const textarea = document.createElement('textarea');
+        textarea.innerHTML = srcMatch[1];
+        return textarea.value;
+    }
+
+    createEmbed(post) {
+        const embedContainer = document.createElement('div');
+        embedContainer.className = 'embed-container';
+
+        // Prefer Reddit's embed data (media_embed or secure_media_embed)
+        const embedData = post.secure_media_embed || post.media_embed;
+
+        // Loading indicator
+        const spinner = document.createElement('div');
+        spinner.className = 'image-loading';
+        embedContainer.appendChild(spinner);
+
+        // Check if Reddit provides embed HTML
+        if (embedData?.content) {
+            console.log(`[MEDIA] Using Reddit embed data for: ${post.url}`);
+            console.log(`[MEDIA] Raw embed content:`, embedData.content);
+
+            // Extract just the src URL from the encoded iframe HTML
+            const embedSrc = this.extractEmbedSrc(embedData.content);
+
+            if (embedSrc) {
+                console.log(`[MEDIA] Extracted embed src:`, embedSrc);
+
+                // Create our own clean iframe with the extracted src
+                const iframe = document.createElement('iframe');
+                iframe.src = embedSrc;
+                iframe.className = 'embed-frame';
+                iframe.setAttribute('allowfullscreen', 'true');
+                iframe.setAttribute('loading', 'lazy');
+                iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share');
+                iframe.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
+
+                // Set dimensions if available
+                if (embedData.width && embedData.height) {
+                    const aspectRatio = (embedData.height / embedData.width) * 100;
+                    embedContainer.style.paddingBottom = `${aspectRatio}%`;
+                }
+
+                iframe.addEventListener('load', () => {
+                    spinner.remove();
+                    console.log(`[MEDIA] Embedded content loaded successfully`);
+                });
+
+                iframe.addEventListener('error', () => {
+                    spinner.remove();
+                    this.showEmbedError(embedContainer, post.url);
+                });
+
+                embedContainer.appendChild(iframe);
+            } else {
+                console.warn(`[MEDIA] Could not extract src from embed content`);
+                spinner.remove();
+                this.showEmbedError(embedContainer, post.url);
+            }
+        } else {
+            // Fallback to direct URL embedding
+            console.log(`[MEDIA] No embed data available, using direct URL: ${post.url}`);
+
+            const iframe = document.createElement('iframe');
+            iframe.src = post.url;
+            iframe.className = 'embed-frame';
+
+            // Security and functionality attributes
+            iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-presentation allow-popups');
+            iframe.setAttribute('allowfullscreen', 'true');
+            iframe.setAttribute('loading', 'lazy');
+            iframe.setAttribute('referrerpolicy', 'no-referrer');
+
+            // Prevent scrolling within iframe
+            iframe.setAttribute('scrolling', 'no');
+
+            // Remove spinner when iframe loads
+            iframe.addEventListener('load', () => {
+                spinner.remove();
+                console.log(`[MEDIA] Embedded content loaded: ${post.url}`);
+            });
+
+            // Handle loading errors
+            iframe.addEventListener('error', () => {
+                spinner.remove();
+                this.showEmbedError(embedContainer, post.url);
+            });
+
+            embedContainer.appendChild(iframe);
+        }
+
+        return embedContainer;
+    }
+
+    showEmbedError(container, url) {
+        container.innerHTML = `
+            <div class="embed-error">
+                <div class="embed-error-icon">🔗</div>
+                <div class="embed-error-text">Unable to embed content</div>
+                <a href="${url}" target="_blank" rel="noopener noreferrer" class="embed-link">
+                    Open in new tab
+                </a>
+            </div>
+        `;
+        console.warn(`[MEDIA] Failed to embed: ${url}`);
+    }
 
     pauseAllVideos() {
         this.container.querySelectorAll('video').forEach(video => video.pause());

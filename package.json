@@ -1,0 +1,11 @@
+{
+  "name": "reddit-tiktok-viewer",
+  "version": "1.0.0",
+  "description": "TikTok-style Reddit media viewer",
+  "scripts": {
+    "start": "npx http-server -p 8000 -o"
+  },
+  "keywords": ["reddit", "viewer", "tiktok"],
+  "author": "",
+  "license": "MIT"
+}
