@@ -222,8 +222,42 @@ class RedditViewer {
         }
     }
 
+    parseSubredditInput(input) {
+        // Trim and default to 'pics' if empty
+        const trimmed = input.trim() || 'pics';
+
+        // Handle full Reddit URLs
+        const urlPatterns = [
+            // Multi-reddit: /user/username/m/multiredditname
+            /(?:https?:\/\/)?(?:www\.)?reddit\.com\/(user\/[^\/]+\/m\/[^\/\?#]+)/i,
+            // Subreddit(s): /r/subreddit or /r/sub1+sub2
+            /(?:https?:\/\/)?(?:www\.)?reddit\.com\/r\/([^\/\?#]+)/i,
+        ];
+
+        for (const pattern of urlPatterns) {
+            const match = trimmed.match(pattern);
+            if (match) {
+                return match[1];
+            }
+        }
+
+        // Handle direct multi-reddit path: user/username/m/multiredditname
+        if (/^user\/[^\/]+\/m\/[^\/]+$/i.test(trimmed)) {
+            return trimmed;
+        }
+
+        // Handle subreddit with r/ prefix: r/pics or r/pics+earthporn
+        if (trimmed.startsWith('r/')) {
+            return trimmed.substring(2);
+        }
+
+        // Handle plain subreddit(s): pics or pics+earthporn+wallpapers
+        return trimmed;
+    }
+
     async loadSubreddit() {
-        const subreddit = this.subredditInput.value.trim() || 'pics';
+        const input = this.subredditInput.value.trim() || 'pics';
+        const subreddit = this.parseSubredditInput(input);
         this.currentSubreddit = subreddit;
         this.after = null;
         this.posts = [];
@@ -294,9 +328,11 @@ class RedditViewer {
 
         try {
             // Build Reddit API URL using JSONP
+            // Handle multi-reddit paths (user/username/m/multiredditname) vs regular subreddits
+            const pathPrefix = this.currentSubreddit.startsWith('user/') ? '' : '/r/';
             const redditUrl = this.after
-                ? `${this.redditApiBase}/r/${this.currentSubreddit}.json?limit=50&after=${this.after}`
-                : `${this.redditApiBase}/r/${this.currentSubreddit}.json?limit=50`;
+                ? `${this.redditApiBase}${pathPrefix}${this.currentSubreddit}.json?limit=50&after=${this.after}`
+                : `${this.redditApiBase}${pathPrefix}${this.currentSubreddit}.json?limit=50`;
 
             console.log(`[FETCH] Reddit URL (JSONP): ${redditUrl}`);
 
@@ -313,7 +349,7 @@ class RedditViewer {
                     const errorMsg = `[NETWORK TIMEOUT ERROR]\n` +
                         `Request exceeded 15 second timeout\n` +
                         `URL: ${redditUrl}\n` +
-                        `Subreddit: r/${this.currentSubreddit}\n` +
+                        `Path: ${this.currentSubreddit}\n` +
                         `Duration: ${requestDuration}ms\n` +
                         `Possible causes: Slow network, server not responding, or rate limiting`;
                     console.error(errorMsg);
@@ -323,11 +359,11 @@ class RedditViewer {
                         `Failed to load data via JSONP\n` +
                         `Error: ${jsonpError.message}\n` +
                         `URL: ${redditUrl}\n` +
-                        `Subreddit: r/${this.currentSubreddit}\n` +
+                        `Path: ${this.currentSubreddit}\n` +
                         `Duration: ${requestDuration}ms\n` +
                         `Possible causes:\n` +
                         `  • Reddit servers are down\n` +
-                        `  • Subreddit doesn't exist\n` +
+                        `  • Subreddit/multi-reddit doesn't exist\n` +
                         `  • Network connectivity issues\n` +
                         `  • Ad blocker or script blocker interfering`;
                     console.error(errorMsg);
@@ -341,8 +377,8 @@ class RedditViewer {
                     `Reddit API returned unexpected data structure\n` +
                     `Expected: {data: {children: [...]}}\n` +
                     `Received: ${JSON.stringify(data).substring(0, 200)}...\n` +
-                    `Subreddit: r/${this.currentSubreddit}\n` +
-                    `This indicates the subreddit may not exist or the Reddit API response format has changed`;
+                    `Path: ${this.currentSubreddit}\n` +
+                    `This indicates the subreddit/multi-reddit may not exist or the Reddit API response format has changed`;
                 console.error(errorMsg);
                 console.error('[API STRUCTURE ERROR] Full response:', data);
                 throw new Error(errorMsg);
