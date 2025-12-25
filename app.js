@@ -740,12 +740,6 @@ Possible causes:
                 galleryNav.querySelectorAll('.gallery-dot').forEach((dot, idx) => {
                     dot.classList.toggle('active', idx === currentSlide);
                 });
-
-                // Update arrow visibility
-                leftArrow.style.opacity = currentSlide > 0 ? '1' : '0.3';
-                leftArrow.style.pointerEvents = currentSlide > 0 ? 'auto' : 'none';
-                rightArrow.style.opacity = currentSlide < galleryData.length - 1 ? '1' : '0.3';
-                rightArrow.style.pointerEvents = currentSlide < galleryData.length - 1 ? 'auto' : 'none';
             };
 
             // Add navigation arrows
@@ -755,10 +749,8 @@ Possible causes:
             leftArrow.setAttribute('aria-label', 'Previous image');
             leftArrow.addEventListener('click', (e) => {
                 e.stopPropagation();
-                if (currentSlide > 0) {
-                    currentSlide--;
-                    updateGallery();
-                }
+                currentSlide = currentSlide > 0 ? currentSlide - 1 : galleryData.length - 1;
+                updateGallery();
             });
 
             const rightArrow = document.createElement('button');
@@ -767,10 +759,8 @@ Possible causes:
             rightArrow.setAttribute('aria-label', 'Next image');
             rightArrow.addEventListener('click', (e) => {
                 e.stopPropagation();
-                if (currentSlide < galleryData.length - 1) {
-                    currentSlide++;
-                    updateGallery();
-                }
+                currentSlide = currentSlide < galleryData.length - 1 ? currentSlide + 1 : 0;
+                updateGallery();
             });
 
             galleryContainer.appendChild(leftArrow);
@@ -791,10 +781,10 @@ Possible causes:
                 const SWIPE_THRESHOLD = 50;
 
                 if (Math.abs(diff) > SWIPE_THRESHOLD) {
-                    if (diff > 0 && currentSlide < galleryData.length - 1) {
-                        currentSlide++;
-                    } else if (diff < 0 && currentSlide > 0) {
-                        currentSlide--;
+                    if (diff > 0) {
+                        currentSlide = currentSlide < galleryData.length - 1 ? currentSlide + 1 : 0;
+                    } else if (diff < 0) {
+                        currentSlide = currentSlide > 0 ? currentSlide - 1 : galleryData.length - 1;
                     }
 
                     updateGallery();
