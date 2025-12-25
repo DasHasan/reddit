@@ -329,7 +329,7 @@ class RedditViewer {
         try {
             // Build Reddit API URL using JSONP
             // Handle multi-reddit paths (user/username/m/multiredditname) vs regular subreddits
-            const pathPrefix = this.currentSubreddit.startsWith('user/') ? '' : '/r/';
+            const pathPrefix = this.currentSubreddit.startsWith('user/') ? '/' : '/r/';
             const redditUrl = this.after
                 ? `${this.redditApiBase}${pathPrefix}${this.currentSubreddit}.json?limit=50&after=${this.after}`
                 : `${this.redditApiBase}${pathPrefix}${this.currentSubreddit}.json?limit=50`;
