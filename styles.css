@@ -47,14 +47,14 @@ body.ui-hidden .subreddit-input {
 }
 
 .subreddit-input input {
-    flex: 1;
-    padding: 12px 15px;
+    flex: 2;
+    padding: 8px 15px;
     border: none;
     border-radius: 20px;
     background: rgba(255, 255, 255, 0.1);
     color: #fff;
     outline: none;
-    font-size: 16px;
+    font-size: 14px;
     min-width: 0;
     -webkit-appearance: none;
 }
@@ -64,18 +64,19 @@ body.ui-hidden .subreddit-input {
 }
 
 .subreddit-input button {
-    padding: 12px 24px;
+    padding: 8px 16px;
     border: none;
     border-radius: 20px;
     background: #ff4458;
     color: #fff;
     font-weight: 600;
     cursor: pointer;
-    font-size: 16px;
+    font-size: 14px;
     transition: background 0.2s;
     white-space: nowrap;
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
+    flex-shrink: 0;
 }
 
 .subreddit-input button:active {
@@ -91,10 +92,10 @@ body.ui-hidden .subreddit-input {
 
 /* Fullscreen Button */
 #fullscreenBtn {
-    padding: 12px 16px;
+    padding: 8px 12px;
     background: rgba(255, 255, 255, 0.15);
     border: 1px solid rgba(255, 255, 255, 0.3);
-    font-size: 18px;
+    font-size: 14px;
     min-width: auto;
 }
 
@@ -688,14 +689,14 @@ body.ui-hidden .nav-hint {
     }
 
     .subreddit-input input {
-        padding: 10px 12px;
-        font-size: 16px;
+        padding: 8px 12px;
+        font-size: 14px;
         width: 100%;
     }
 
     .subreddit-input button {
-        padding: 10px 18px;
-        font-size: 15px;
+        padding: 8px 14px;
+        font-size: 13px;
         flex: 1;
     }
 
