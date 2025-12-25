@@ -350,8 +350,6 @@ body.ui-hidden .gallery-counter {
 /* Gallery Navigation Arrows */
 .gallery-arrow {
     position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
     background: rgba(0, 0, 0, 0.75);
     color: #fff;
     border: 2px solid rgba(255, 255, 255, 0.3);
@@ -377,15 +375,29 @@ body.ui-hidden .gallery-counter {
 .gallery-arrow:active {
     background: rgba(255, 68, 88, 0.9);
     border-color: rgba(255, 68, 88, 0.8);
-    transform: translateY(-50%) scale(1.1);
+    transform: scale(1.1);
 }
 
 .gallery-arrow-left {
     left: 15px;
+    top: 45%;
+    transform: translateY(-50%);
+}
+
+.gallery-arrow-left:hover,
+.gallery-arrow-left:active {
+    transform: translateY(-50%) scale(1.1);
 }
 
 .gallery-arrow-right {
-    right: 15px;
+    left: 15px;
+    top: 55%;
+    transform: translateY(-50%);
+}
+
+.gallery-arrow-right:hover,
+.gallery-arrow-right:active {
+    transform: translateY(-50%) scale(1.1);
 }
 
 body.ui-hidden .gallery-arrow {
@@ -403,10 +415,12 @@ body.ui-hidden .gallery-arrow {
 
     .gallery-arrow-left {
         left: 10px;
+        top: 45%;
     }
 
     .gallery-arrow-right {
-        right: 10px;
+        left: 10px;
+        top: 55%;
     }
 }
 
