@@ -90,19 +90,48 @@ body.ui-hidden .subreddit-input {
     opacity: 0.6;
 }
 
-/* Fullscreen Button */
-#fullscreenBtn {
+/* Load/Search Button - Smaller */
+#loadBtn {
     padding: 8px 12px;
-    background: rgba(255, 255, 255, 0.15);
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    font-size: 14px;
+    font-size: 16px;
     min-width: auto;
 }
 
-#fullscreenBtn:hover,
-#fullscreenBtn:active {
-    background: rgba(255, 255, 255, 0.25);
-    border-color: rgba(255, 255, 255, 0.5);
+/* Fullscreen Button - Bottom Position */
+.fullscreen-btn-bottom {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 100;
+    width: 50px;
+    height: 50px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.8);
+    color: #fff;
+    font-size: 20px;
+    cursor: pointer;
+    backdrop-filter: blur(10px);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    transition: transform 0.3s ease, opacity 0.3s ease, background 0.2s;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.fullscreen-btn-bottom:hover,
+.fullscreen-btn-bottom:active {
+    background: rgba(255, 68, 88, 0.9);
+    border-color: rgba(255, 68, 88, 0.8);
+    transform: scale(1.1);
+}
+
+body.ui-hidden .fullscreen-btn-bottom {
+    transform: translateY(100px);
+    opacity: 0;
+    pointer-events: none;
 }
 
 /* Loading Indicator */
