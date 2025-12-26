@@ -202,6 +202,19 @@ body.ui-hidden .loading {
     object-fit: cover;
 }
 
+/* Tap Overlay - prevents videos/iframes from stealing tap events */
+.tap-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 5;
+    background: transparent;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
 /* Embedded Content (iframes) */
 .embed-container {
     width: 100%;

@@ -541,6 +541,11 @@ class RedditViewer {
 
         postEl.appendChild(mediaWrapper);
 
+        // Add tap overlay to prevent videos/iframes from stealing tap events
+        const tapOverlay = document.createElement('div');
+        tapOverlay.className = 'tap-overlay';
+        mediaWrapper.appendChild(tapOverlay);
+
         // Add post info overlay
         const postInfo = document.createElement('div');
         postInfo.className = 'post-info';
