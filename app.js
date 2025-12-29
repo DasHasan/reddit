@@ -571,8 +571,6 @@ class RedditViewer {
         const username = document.createElement('span');
         username.className = 'username-link';
         username.textContent = `u/${post.author}`;
-        username.style.cursor = 'pointer';
-        username.style.textDecoration = 'underline';
         username.addEventListener('click', (e) => {
             e.stopPropagation();
             const userUrl = `${window.location.origin}${window.location.pathname}?r=user/${post.author}/submitted`;
@@ -584,8 +582,6 @@ class RedditViewer {
         const subreddit = document.createElement('span');
         subreddit.className = 'subreddit-link';
         subreddit.textContent = `r/${post.subreddit}`;
-        subreddit.style.cursor = 'pointer';
-        subreddit.style.textDecoration = 'underline';
         subreddit.addEventListener('click', (e) => {
             e.stopPropagation();
             const subredditUrl = `${window.location.origin}${window.location.pathname}?r=${post.subreddit}`;
