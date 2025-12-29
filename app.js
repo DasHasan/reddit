@@ -549,14 +549,52 @@ class RedditViewer {
         // Add post info overlay
         const postInfo = document.createElement('div');
         postInfo.className = 'post-info';
-        postInfo.innerHTML = `
-            <div class="post-title">${this.escapeHtml(post.title)}</div>
-            <div class="post-meta">
-                <span>👍 ${this.formatNumber(post.ups)}</span>
-                <span>💬 ${this.formatNumber(post.num_comments)}</span>
-                <span>r/${post.subreddit}</span>
-            </div>
-        `;
+
+        const postTitle = document.createElement('div');
+        postTitle.className = 'post-title';
+        postTitle.textContent = post.title;
+
+        const postMeta = document.createElement('div');
+        postMeta.className = 'post-meta';
+
+        // Upvotes
+        const upvotes = document.createElement('span');
+        upvotes.textContent = `👍 ${this.formatNumber(post.ups)}`;
+        postMeta.appendChild(upvotes);
+
+        // Comments
+        const comments = document.createElement('span');
+        comments.textContent = `💬 ${this.formatNumber(post.num_comments)}`;
+        postMeta.appendChild(comments);
+
+        // Clickable username
+        const username = document.createElement('span');
+        username.className = 'username-link';
+        username.textContent = `u/${post.author}`;
+        username.style.cursor = 'pointer';
+        username.style.textDecoration = 'underline';
+        username.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const userUrl = `${window.location.origin}${window.location.pathname}?r=user/${post.author}/submitted`;
+            window.open(userUrl, '_blank');
+        });
+        postMeta.appendChild(username);
+
+        // Clickable subreddit
+        const subreddit = document.createElement('span');
+        subreddit.className = 'subreddit-link';
+        subreddit.textContent = `r/${post.subreddit}`;
+        subreddit.style.cursor = 'pointer';
+        subreddit.style.textDecoration = 'underline';
+        subreddit.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const subredditUrl = `${window.location.origin}${window.location.pathname}?r=${post.subreddit}`;
+            window.open(subredditUrl, '_blank');
+        });
+        postMeta.appendChild(subreddit);
+
+        postInfo.appendChild(postTitle);
+        postInfo.appendChild(postMeta);
         postEl.appendChild(postInfo);
 
         // Add tap/click to toggle UI
@@ -566,7 +604,9 @@ class RedditViewer {
                 e.target.closest('.gallery-counter') ||
                 e.target.closest('.gallery-arrow') ||
                 e.target.closest('.embed-container') ||
-                e.target.closest('.embed-link')) {
+                e.target.closest('.embed-link') ||
+                e.target.closest('.username-link') ||
+                e.target.closest('.subreddit-link')) {
                 return;
             }
             this.toggleUI();
