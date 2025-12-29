@@ -508,6 +508,23 @@ body.ui-hidden .post-info {
     text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
 }
 
+/* Clickable username and subreddit links */
+.username-link,
+.subreddit-link {
+    pointer-events: auto;
+    cursor: pointer;
+    text-decoration: underline;
+    transition: color 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.username-link:hover,
+.username-link:active,
+.subreddit-link:hover,
+.subreddit-link:active {
+    color: #ff4458;
+}
+
 /* Navigation Hint */
 .nav-hint {
     position: fixed;
