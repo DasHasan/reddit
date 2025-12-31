@@ -97,11 +97,11 @@ body.ui-hidden .subreddit-input {
     min-width: auto;
 }
 
-/* Fullscreen Button - Bottom Position */
+/* Fullscreen Button - Top Position */
 .fullscreen-btn-bottom {
     position: fixed;
-    bottom: 20px;
-    right: 20px;
+    top: 10px;
+    right: 10px;
     z-index: 100;
     width: 50px;
     height: 50px;
@@ -129,7 +129,44 @@ body.ui-hidden .subreddit-input {
 }
 
 body.ui-hidden .fullscreen-btn-bottom {
-    transform: translateY(100px);
+    transform: translateY(-100px);
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* Reddit Button - Top Position */
+.reddit-btn {
+    position: fixed;
+    top: 10px;
+    right: 70px;
+    z-index: 100;
+    width: 50px;
+    height: 50px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.8);
+    color: #fff;
+    font-size: 20px;
+    cursor: pointer;
+    backdrop-filter: blur(10px);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    transition: transform 0.3s ease, opacity 0.3s ease, background 0.2s;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.reddit-btn:hover,
+.reddit-btn:active {
+    background: rgba(255, 68, 88, 0.9);
+    border-color: rgba(255, 68, 88, 0.8);
+    transform: scale(1.1);
+}
+
+body.ui-hidden .reddit-btn {
+    transform: translateY(-100px);
     opacity: 0;
     pointer-events: none;
 }
@@ -442,9 +479,9 @@ body.ui-hidden .gallery-counter {
     transform: translateY(-50%) scale(1.1);
 }
 
+/* Gallery arrows stay visible when UI is hidden */
 body.ui-hidden .gallery-arrow {
-    opacity: 0;
-    pointer-events: none;
+    /* Keep gallery arrows visible */
 }
 
 /* Mobile-friendly arrow sizing */
