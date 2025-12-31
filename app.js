@@ -26,6 +26,7 @@ class RedditViewer {
         this.subredditInput = document.getElementById('subredditName');
         this.loadBtn = document.getElementById('loadBtn');
         this.fullscreenBtn = document.getElementById('fullscreenBtn');
+        this.redditBtn = document.getElementById('redditBtn');
         this.navHint = document.getElementById('navHint');
 
         // Create virtual scroll spacer to maintain scroll height
@@ -46,6 +47,9 @@ class RedditViewer {
 
         // Fullscreen toggle
         this.fullscreenBtn.addEventListener('click', () => this.toggleFullscreen());
+
+        // Reddit button - open current post on Reddit
+        this.redditBtn.addEventListener('click', () => this.openCurrentPostOnReddit());
 
         // Listen for fullscreen changes (including keyboard shortcuts like F11, ESC)
         document.addEventListener('fullscreenchange', () => {
@@ -137,6 +141,17 @@ class RedditViewer {
             }).catch((err) => {
                 console.error(`[FULLSCREEN] Error exiting fullscreen: ${err.message}`);
             });
+        }
+    }
+
+    openCurrentPostOnReddit() {
+        const currentPost = this.posts[this.currentIndex];
+        if (currentPost && currentPost.permalink) {
+            const redditUrl = `https://www.reddit.com${currentPost.permalink}`;
+            window.open(redditUrl, '_blank');
+            console.log(`[REDDIT] Opening post on Reddit: ${redditUrl}`);
+        } else {
+            console.warn('[REDDIT] No post available to open');
         }
     }
 
