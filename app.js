@@ -11,10 +11,7 @@ class RedditViewer {
         this.itemHeight = window.innerHeight; // Each post is 100vh
         this.renderBuffer = 2; // Render this many posts above/below viewport
         this.uiVisible = true; // Track UI visibility state
-
-        // JSONP configuration
         this.redditApiBase = 'https://www.reddit.com';
-        this.jsonpCallbackCounter = 0; // For generating unique callback names
 
         this.init();
     }
@@ -291,48 +288,6 @@ class RedditViewer {
         await this.fetchPosts();
     }
 
-    // JSONP request handler
-    jsonpRequest(url, timeout = 15000) {
-        return new Promise((resolve, reject) => {
-            // Generate unique callback name
-            const callbackName = `jsonpCallback_${Date.now()}_${this.jsonpCallbackCounter++}`;
-
-            // Create script element
-            const script = document.createElement('script');
-            const timeoutId = setTimeout(() => {
-                cleanup();
-                reject(new Error('JSONP request timeout'));
-            }, timeout);
-
-            // Cleanup function
-            const cleanup = () => {
-                clearTimeout(timeoutId);
-                delete window[callbackName];
-                if (script.parentNode) {
-                    script.parentNode.removeChild(script);
-                }
-            };
-
-            // Define callback function
-            window[callbackName] = (data) => {
-                cleanup();
-                resolve(data);
-            };
-
-            // Handle script loading errors
-            script.onerror = () => {
-                cleanup();
-                reject(new Error('JSONP script load error'));
-            };
-
-            // Set script source with callback parameter
-            script.src = `${url}${url.includes('?') ? '&' : '?'}jsonp=${callbackName}`;
-
-            // Add script to DOM to trigger request
-            document.head.appendChild(script);
-        });
-    }
-
     async fetchPosts() {
         if (this.isLoading) return;
 
@@ -342,48 +297,36 @@ class RedditViewer {
         const startTime = performance.now();
 
         try {
-            // Build Reddit API URL using JSONP
+            // Build Reddit API URL
             // Handle multi-reddit paths (user/username/m/multiredditname) vs regular subreddits
             const pathPrefix = this.currentSubreddit.startsWith('user/') ? '/' : '/r/';
             const redditUrl = this.after
                 ? `${this.redditApiBase}${pathPrefix}${this.currentSubreddit}.json?limit=50&after=${this.after}`
                 : `${this.redditApiBase}${pathPrefix}${this.currentSubreddit}.json?limit=50`;
 
-            console.log(`[FETCH] Reddit URL (JSONP): ${redditUrl}`);
+            // Reddit blocks direct browser fetch due to CORS; route through a proxy
+            const proxyUrl = `https://corsproxy.io/?url=${encodeURIComponent(redditUrl)}`;
+            console.log(`[FETCH] Reddit URL: ${redditUrl}`);
 
-            // Use JSONP to fetch data (no CORS issues!)
             let data;
             try {
-                data = await this.jsonpRequest(redditUrl);
-                const requestDuration = (performance.now() - startTime).toFixed(2);
-                console.log(`[FETCH] JSONP response received in ${requestDuration}ms`);
-            } catch (jsonpError) {
-                const requestDuration = (performance.now() - startTime).toFixed(2);
-
-                if (jsonpError.message === 'JSONP request timeout') {
-                    const errorMsg = `[NETWORK TIMEOUT ERROR]\n` +
-                        `Request exceeded 15 second timeout\n` +
-                        `URL: ${redditUrl}\n` +
-                        `Path: ${this.currentSubreddit}\n` +
-                        `Duration: ${requestDuration}ms\n` +
-                        `Possible causes: Slow network, server not responding, or rate limiting`;
-                    console.error(errorMsg);
-                    throw new Error(errorMsg);
-                } else {
-                    const errorMsg = `[JSONP ERROR]\n` +
-                        `Failed to load data via JSONP\n` +
-                        `Error: ${jsonpError.message}\n` +
-                        `URL: ${redditUrl}\n` +
-                        `Path: ${this.currentSubreddit}\n` +
-                        `Duration: ${requestDuration}ms\n` +
-                        `Possible causes:\n` +
-                        `  • Reddit servers are down\n` +
-                        `  • Subreddit/multi-reddit doesn't exist\n` +
-                        `  • Network connectivity issues\n` +
-                        `  • Ad blocker or script blocker interfering`;
-                    console.error(errorMsg);
-                    throw new Error(errorMsg);
+                const response = await fetch(proxyUrl, {
+                    signal: AbortSignal.timeout(15000)
+                });
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status} ${response.statusText}`);
                 }
+                data = await response.json();
+                const requestDuration = (performance.now() - startTime).toFixed(2);
+                console.log(`[FETCH] Response received in ${requestDuration}ms`);
+            } catch (fetchError) {
+                const requestDuration = (performance.now() - startTime).toFixed(2);
+                const isTimeout = fetchError.name === 'TimeoutError' || fetchError.name === 'AbortError';
+                const errorMsg = isTimeout
+                    ? `[NETWORK TIMEOUT ERROR]\nRequest exceeded 15 second timeout\nURL: ${redditUrl}\nPath: ${this.currentSubreddit}\nDuration: ${requestDuration}ms\nPossible causes: Slow network, server not responding, or rate limiting`
+                    : `[FETCH ERROR]\nFailed to load data\nError: ${fetchError.message}\nURL: ${redditUrl}\nPath: ${this.currentSubreddit}\nDuration: ${requestDuration}ms\nPossible causes:\n  • Reddit servers are down\n  • Subreddit/multi-reddit doesn't exist\n  • Network connectivity issues\n  • Ad blocker or browser extension interfering`;
+                console.error(errorMsg);
+                throw new Error(errorMsg);
             }
 
             // Validate response structure
