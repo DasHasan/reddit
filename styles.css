@@ -631,6 +631,15 @@ body.ui-hidden .nav-hint {
     color: #ff4458;
 }
 
+.error-reddit-link {
+    display: block;
+    margin: 12px 0 4px;
+    color: #ff6b35;
+    font-size: 13px;
+    text-decoration: underline;
+    font-family: 'Courier New', monospace;
+}
+
 .error-copy {
     position: absolute;
     bottom: 15px;

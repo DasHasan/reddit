@@ -11,7 +11,8 @@ class RedditViewer {
         this.itemHeight = window.innerHeight; // Each post is 100vh
         this.renderBuffer = 2; // Render this many posts above/below viewport
         this.uiVisible = true; // Track UI visibility state
-        this.redditApiBase = 'https://reddit-proxy.hasan-celik1501.workers.dev';
+        this.redditApiBase = 'https://www.reddit.com';
+        this.jsonpCallbackCounter = 0; // For generating unique callback names
 
         this.init();
     }
@@ -288,6 +289,36 @@ class RedditViewer {
         await this.fetchPosts();
     }
 
+    jsonpRequest(url, timeout = 15000) {
+        return new Promise((resolve, reject) => {
+            const callbackName = `jsonpCallback_${Date.now()}_${this.jsonpCallbackCounter++}`;
+            const script = document.createElement('script');
+            const timeoutId = setTimeout(() => {
+                cleanup();
+                reject(new Error('JSONP request timeout'));
+            }, timeout);
+
+            const cleanup = () => {
+                clearTimeout(timeoutId);
+                delete window[callbackName];
+                if (script.parentNode) script.parentNode.removeChild(script);
+            };
+
+            window[callbackName] = (data) => {
+                cleanup();
+                resolve(data);
+            };
+
+            script.onerror = () => {
+                cleanup();
+                reject(new Error('JSONP script load error'));
+            };
+
+            script.src = `${url}${url.includes('?') ? '&' : '?'}jsonp=${callbackName}`;
+            document.head.appendChild(script);
+        });
+    }
+
     async fetchPosts() {
         if (this.isLoading) return;
 
@@ -301,30 +332,23 @@ class RedditViewer {
             // Handle multi-reddit paths (user/username/m/multiredditname) vs regular subreddits
             const pathPrefix = this.currentSubreddit.startsWith('user/') ? '/' : '/r/';
             const redditUrl = this.after
-                ? `${this.redditApiBase}${pathPrefix}${this.currentSubreddit}.json?limit=50&after=${this.after}&over18=1`
-                : `${this.redditApiBase}${pathPrefix}${this.currentSubreddit}.json?limit=50&over18=1`;
+                ? `${this.redditApiBase}${pathPrefix}${this.currentSubreddit}.json?limit=50&after=${this.after}`
+                : `${this.redditApiBase}${pathPrefix}${this.currentSubreddit}.json?limit=50`;
 
-            console.log(`[FETCH] Reddit URL: ${redditUrl}`);
+            console.log(`[FETCH] Reddit URL (JSONP): ${redditUrl}`);
 
             let data;
             try {
-                const response = await fetch(redditUrl, {
-                    signal: AbortSignal.timeout(15000)
-                });
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status} ${response.statusText}`);
-                }
-                data = await response.json();
+                data = await this.jsonpRequest(redditUrl);
                 const requestDuration = (performance.now() - startTime).toFixed(2);
-                console.log(`[FETCH] Response received in ${requestDuration}ms`);
-            } catch (fetchError) {
+                console.log(`[FETCH] JSONP response received in ${requestDuration}ms`);
+            } catch (jsonpError) {
                 const requestDuration = (performance.now() - startTime).toFixed(2);
-                const isTimeout = fetchError.name === 'TimeoutError' || fetchError.name === 'AbortError';
-                const errorMsg = isTimeout
+                const errorMsg = jsonpError.message === 'JSONP request timeout'
                     ? `[NETWORK TIMEOUT ERROR]\nRequest exceeded 15 second timeout\nURL: ${redditUrl}\nPath: ${this.currentSubreddit}\nDuration: ${requestDuration}ms\nPossible causes: Slow network, server not responding, or rate limiting`
-                    : `[FETCH ERROR]\nFailed to load data\nError: ${fetchError.message}\nURL: ${redditUrl}\nPath: ${this.currentSubreddit}\nDuration: ${requestDuration}ms\nPossible causes:\n  • Reddit servers are down\n  • Subreddit/multi-reddit doesn't exist\n  • Network connectivity issues\n  • Ad blocker or browser extension interfering`;
+                    : `[JSONP ERROR]\nFailed to load data via JSONP\nError: ${jsonpError.message}\nURL: ${redditUrl}\nPath: ${this.currentSubreddit}\nDuration: ${requestDuration}ms\nPossible causes:\n  • Reddit session expired — open the URL below in a new tab, then retry\n  • Subreddit doesn't exist\n  • Network connectivity issues\n  • Ad blocker or script blocker interfering`;
                 console.error(errorMsg);
-                throw new Error(errorMsg);
+                throw Object.assign(new Error(errorMsg), { redditUrl });
             }
 
             // Validate response structure
@@ -381,7 +405,7 @@ class RedditViewer {
 
             // Show detailed error to user with stack trace
             const errorMessage = error.message || `[UNKNOWN ERROR]\nAn unexpected error occurred\nCheck console for details`;
-            this.showError(errorMessage, error.stack);
+            this.showError(errorMessage, error.stack, error.redditUrl);
             this.hideLoading();
         }
 
@@ -1026,7 +1050,7 @@ Possible causes:
         this.loading.classList.remove('active');
     }
 
-    showError(message, stackTrace = null) {
+    showError(message, stackTrace = null, redditUrl = null) {
         // Remove any existing error messages
         document.querySelectorAll('.error-message').forEach(err => err.remove());
 
@@ -1098,6 +1122,17 @@ Possible causes:
         }
 
         errorEl.appendChild(errorContent);
+
+        // Add Reddit URL link if provided (e.g. for JSONP session errors)
+        if (redditUrl) {
+            const linkEl = document.createElement('a');
+            linkEl.className = 'error-reddit-link';
+            linkEl.href = redditUrl;
+            linkEl.target = '_blank';
+            linkEl.rel = 'noopener noreferrer';
+            linkEl.textContent = '🔗 Open Reddit URL to refresh session';
+            errorEl.appendChild(linkEl);
+        }
 
         // Add close button
         const closeBtn = document.createElement('button');
