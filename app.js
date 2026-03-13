@@ -301,8 +301,8 @@ class RedditViewer {
             // Handle multi-reddit paths (user/username/m/multiredditname) vs regular subreddits
             const pathPrefix = this.currentSubreddit.startsWith('user/') ? '/' : '/r/';
             const redditUrl = this.after
-                ? `${this.redditApiBase}${pathPrefix}${this.currentSubreddit}.json?limit=50&after=${this.after}`
-                : `${this.redditApiBase}${pathPrefix}${this.currentSubreddit}.json?limit=50`;
+                ? `${this.redditApiBase}${pathPrefix}${this.currentSubreddit}.json?limit=50&after=${this.after}&over18=1`
+                : `${this.redditApiBase}${pathPrefix}${this.currentSubreddit}.json?limit=50&over18=1`;
 
             console.log(`[FETCH] Reddit URL: ${redditUrl}`);
 
