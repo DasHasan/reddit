@@ -566,63 +566,34 @@ body.ui-hidden .nav-hint {
     transform: translate(-50%, -50%);
     background: rgba(20, 20, 25, 0.98);
     border: 2px solid rgba(255, 68, 88, 0.8);
-    padding: 25px;
-    border-radius: 12px;
+    padding: 16px 40px 16px 16px;
+    border-radius: 10px;
     z-index: 150;
-    max-width: 90%;
-    max-height: 80vh;
-    overflow-y: auto;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    max-width: 85%;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
     font-family: 'Courier New', monospace;
     font-size: 13px;
-    line-height: 1.6;
-    text-align: left;
+    line-height: 1.5;
 }
 
 .error-content {
-    color: #fff;
-    margin-bottom: 15px;
-}
-
-.error-header {
-    color: #ff4458;
-    font-weight: bold;
-    font-size: 15px;
-    margin: 10px 0 8px 0;
-    padding: 5px 0;
-    border-bottom: 1px solid rgba(255, 68, 88, 0.3);
-}
-
-.error-line {
-    margin: 4px 0;
-    color: #e0e0e0;
-}
-
-.error-line strong {
     color: #ff8899;
-    display: inline-block;
-    min-width: 120px;
-}
-
-.error-bullet {
-    margin: 3px 0;
-    padding-left: 10px;
-    color: #c0c0c0;
+    font-weight: bold;
 }
 
 .error-close {
     position: absolute;
-    top: 10px;
-    right: 10px;
+    top: 8px;
+    right: 8px;
     background: transparent;
     border: none;
     color: #fff;
-    font-size: 28px;
+    font-size: 22px;
     cursor: pointer;
     padding: 0;
-    width: 30px;
-    height: 30px;
-    line-height: 30px;
+    width: 24px;
+    height: 24px;
+    line-height: 24px;
     text-align: center;
     transition: color 0.2s;
 }
@@ -633,112 +604,10 @@ body.ui-hidden .nav-hint {
 
 .error-reddit-link {
     display: block;
-    margin: 12px 0 4px;
+    margin-top: 8px;
     color: #ff6b35;
-    font-size: 13px;
+    font-size: 12px;
     text-decoration: underline;
-    font-family: 'Courier New', monospace;
-}
-
-.error-copy {
-    position: absolute;
-    bottom: 15px;
-    right: 15px;
-    background: rgba(255, 68, 88, 0.2);
-    border: 1px solid rgba(255, 68, 88, 0.5);
-    color: #fff;
-    padding: 8px 15px;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 12px;
-    transition: all 0.2s;
-    font-family: 'Courier New', monospace;
-}
-
-.error-copy:hover {
-    background: rgba(255, 68, 88, 0.4);
-    border-color: rgba(255, 68, 88, 0.8);
-}
-
-.error-copy:active {
-    transform: scale(0.95);
-}
-
-/* Stack trace styling */
-.error-stack {
-    background: rgba(0, 0, 0, 0.4);
-    border-left: 3px solid rgba(255, 68, 88, 0.5);
-    padding: 10px;
-    margin-top: 10px;
-    margin-bottom: 40px;
-    border-radius: 4px;
-    font-size: 12px;
-    overflow-x: auto;
-}
-
-.error-stack-line {
-    margin: 2px 0;
-    color: #d0d0d0;
-    white-space: pre-wrap;
-    word-break: break-all;
-}
-
-.error-stack-line .stack-linenum {
-    color: #666;
-    margin-right: 8px;
-    user-select: none;
-}
-
-.error-stack-line .stack-at {
-    color: #ff6b6b;
-    font-weight: bold;
-}
-
-.error-stack-line .stack-function {
-    color: #4dabf7;
-    font-weight: bold;
-}
-
-.error-stack-line .stack-file {
-    color: #51cf66;
-}
-
-/* Scrollbar styling for error messages */
-.error-message::-webkit-scrollbar {
-    width: 8px;
-}
-
-.error-message::-webkit-scrollbar-track {
-    background: rgba(0, 0, 0, 0.3);
-    border-radius: 4px;
-}
-
-.error-message::-webkit-scrollbar-thumb {
-    background: rgba(255, 68, 88, 0.5);
-    border-radius: 4px;
-}
-
-.error-message::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 68, 88, 0.7);
-}
-
-/* Stack trace horizontal scrollbar */
-.error-stack::-webkit-scrollbar {
-    height: 6px;
-}
-
-.error-stack::-webkit-scrollbar-track {
-    background: rgba(0, 0, 0, 0.3);
-    border-radius: 3px;
-}
-
-.error-stack::-webkit-scrollbar-thumb {
-    background: rgba(255, 68, 88, 0.5);
-    border-radius: 3px;
-}
-
-.error-stack::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 68, 88, 0.7);
 }
 
 /* Image Loading Indicator */

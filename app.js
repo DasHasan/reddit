@@ -1057,71 +1057,12 @@ Possible causes:
         const errorEl = document.createElement('div');
         errorEl.className = 'error-message';
 
-        // Create error content with formatting
-        const errorContent = document.createElement('div');
-        errorContent.className = 'error-content';
-
-        // Format the error message with proper line breaks and indentation
-        const formattedMessage = message
-            .split('\n')
-            .map(line => {
-                const trimmed = line.trim();
-                if (!trimmed) return '';
-
-                if (trimmed.startsWith('•')) {
-                    return `<div class="error-bullet">${this.escapeHtml(trimmed)}</div>`;
-                }
-
-                if (trimmed.includes(':')) {
-                    const [key, ...valueParts] = trimmed.split(':');
-                    const value = valueParts.join(':');
-                    return `<div class="error-line"><strong>${this.escapeHtml(key)}:</strong>${this.escapeHtml(value)}</div>`;
-                }
-
-                if (trimmed.startsWith('[') && trimmed.includes(']')) {
-                    return `<div class="error-header">${this.escapeHtml(trimmed)}</div>`;
-                }
-
-                return `<div class="error-line">${this.escapeHtml(trimmed)}</div>`;
-            })
-            .join('');
-
-        errorContent.innerHTML = formattedMessage;
-
-        // Add stack trace if provided
-        if (stackTrace) {
-            const stackHeader = document.createElement('div');
-            Object.assign(stackHeader, {
-                className: 'error-header',
-                textContent: 'STACK TRACE'
-            });
-            stackHeader.style.marginTop = '15px';
-            errorContent.appendChild(stackHeader);
-
-            const stackContainer = document.createElement('div');
-            stackContainer.className = 'error-stack';
-
-            // Format stack trace with line numbers
-            stackTrace.split('\n').forEach((line, index) => {
-                const stackLine = document.createElement('div');
-                stackLine.className = 'error-stack-line';
-
-                // Highlight function names and file paths
-                let formattedLine = this.escapeHtml(line)
-                    .replace(/at /g, '<span class="stack-at">at</span> ')
-                    .replace(/at <span class="stack-at">at<\/span> ([^\s(]+)/g,
-                        'at <span class="stack-at">at</span> <span class="stack-function">$1</span>')
-                    .replace(/\(([^)]+):(\d+):(\d+)\)/g,
-                        '(<span class="stack-file">$1:<span class="stack-linenum">$2:$3</span></span>)');
-
-                stackLine.innerHTML = `<span class="stack-linenum">${(index + 1).toString().padStart(2, '0')}</span> ${formattedLine}`;
-                stackContainer.appendChild(stackLine);
-            });
-
-            errorContent.appendChild(stackContainer);
-        }
-
-        errorEl.appendChild(errorContent);
+        // Show only the first line of the message (the error type header)
+        const firstLine = message.split('\n').find(l => l.trim()) || message;
+        const msgEl = document.createElement('div');
+        msgEl.className = 'error-content';
+        msgEl.textContent = firstLine;
+        errorEl.appendChild(msgEl);
 
         // Add Reddit URL link if provided (e.g. for JSONP session errors)
         if (redditUrl) {
@@ -1141,25 +1082,6 @@ Possible causes:
         closeBtn.onclick = () => errorEl.remove();
         errorEl.appendChild(closeBtn);
 
-        // Prepare full text for copying (including stack trace)
-        const fullErrorText = stackTrace ? `${message}\n\nSTACK TRACE:\n${stackTrace}` : message;
-
-        // Add copy button for technical details
-        const copyBtn = document.createElement('button');
-        copyBtn.className = 'error-copy';
-        copyBtn.innerHTML = '📋 Copy';
-        copyBtn.onclick = async () => {
-            try {
-                await navigator.clipboard.writeText(fullErrorText);
-                copyBtn.innerHTML = '✓ Copied';
-                setTimeout(() => copyBtn.innerHTML = '📋 Copy', 2000);
-            } catch (err) {
-                console.error('Failed to copy to clipboard:', err);
-                copyBtn.innerHTML = '✗ Failed';
-            }
-        };
-        errorEl.appendChild(copyBtn);
-
         document.body.appendChild(errorEl);
 
         console.error('[ERROR DISPLAYED TO USER]', message);
@@ -1167,9 +1089,6 @@ Possible causes:
             console.error('[STACK TRACE]', stackTrace);
         }
 
-        // Auto-dismiss after 20 seconds for stack traces (up from 15s)
-        const AUTO_DISMISS_MS = stackTrace ? 20000 : 15000;
-        setTimeout(() => errorEl.remove(), AUTO_DISMISS_MS);
     }
 
     escapeHtml(text) {
