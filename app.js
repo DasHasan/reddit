@@ -11,7 +11,7 @@ class RedditViewer {
         this.itemHeight = window.innerHeight; // Each post is 100vh
         this.renderBuffer = 2; // Render this many posts above/below viewport
         this.uiVisible = true; // Track UI visibility state
-        this.redditApiBase = 'https://www.reddit.com';
+        this.redditApiBase = 'https://reddit-proxy.hasan-celik1501.workers.dev';
 
         this.init();
     }
@@ -304,13 +304,11 @@ class RedditViewer {
                 ? `${this.redditApiBase}${pathPrefix}${this.currentSubreddit}.json?limit=50&after=${this.after}`
                 : `${this.redditApiBase}${pathPrefix}${this.currentSubreddit}.json?limit=50`;
 
-            // Reddit blocks direct browser fetch due to CORS; route through a proxy
-            const proxyUrl = `https://corsproxy.io/?url=${encodeURIComponent(redditUrl)}`;
             console.log(`[FETCH] Reddit URL: ${redditUrl}`);
 
             let data;
             try {
-                const response = await fetch(proxyUrl, {
+                const response = await fetch(redditUrl, {
                     signal: AbortSignal.timeout(15000)
                 });
                 if (!response.ok) {
