@@ -1,12 +1,12 @@
 {
-  "name": "reddit-tiktok-viewer",
+  "name": "reddit-media-viewer",
   "version": "1.0.0",
-  "description": "TikTok-style Reddit media viewer",
+  "description": "Reddit media viewer",
   "scripts": {
     "start": "npx http-server -p 8000 -o",
     "start:network": "npx http-server -p 8000 -a 0.0.0.0"
   },
-  "keywords": ["reddit", "viewer", "tiktok"],
+  "keywords": ["reddit", "viewer"],
   "author": "",
   "license": "MIT"
 }

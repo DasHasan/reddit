@@ -1,6 +1,6 @@
-# TikTok-Style Reddit Media Viewer
+# Reddit Media Viewer
 
-A mobile-first web app that displays Reddit media posts in a TikTok-like vertical scrolling interface.
+A mobile-first web app that displays Reddit media posts in a vertical scrolling interface.
 
 ## Features
 
@@ -37,11 +37,11 @@ A mobile-first web app that displays Reddit media posts in a TikTok-like vertica
 
 - Pure Vanilla JavaScript (no frameworks)
 - CSS3 with mobile-first responsive design
-- Reddit JSON API (no authentication required)
+- Reddit JSON API via Cloudflare Worker proxy
 
 ## How It Works
 
-The app uses Reddit's public JSON API by appending `.json` to any subreddit URL:
+The app fetches posts through a Cloudflare Worker proxy that forwards requests to Reddit's public JSON API:
 ```
 https://www.reddit.com/r/{subreddit}.json
 ```
@@ -50,7 +50,7 @@ It filters posts to show only media content:
 - Images (direct links, i.redd.it, imgur, animated GIFs)
 - Videos (Reddit hosted videos, GIFV)
 - Gallery posts (multiple images)
-- Embedded content (YouTube, Twitter, TikTok, etc.)
+- Embedded content (YouTube, Twitter, etc.)
 
 The current subreddit is stored in the URL (`?r=subreddit`) so you can bookmark, share, or reload with the same subreddit.
 

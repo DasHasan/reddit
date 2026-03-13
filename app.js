@@ -1,4 +1,4 @@
-// Reddit TikTok Viewer
+// Reddit Media Viewer
 class RedditViewer {
     constructor() {
         this.posts = [];
