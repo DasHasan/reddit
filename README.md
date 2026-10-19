@@ -61,17 +61,6 @@ The current subreddit is stored in the URL (`?r=subreddit`) so you can bookmark,
 - **Minimal Dependencies** - No external libraries, pure vanilla JS
 - **Optimized Transitions** - Hardware-accelerated CSS transforms
 
-## GitHub Pages Deployment
-
-To deploy this to GitHub Pages:
-
-1. Go to your repository Settings
-2. Navigate to "Pages" in the sidebar
-3. Under "Source", select "GitHub Actions"
-4. The workflow will automatically deploy on push to the branch
-
-The site will be available at: `https://{username}.github.io/{repo-name}/`
-
 ## Local Development
 
 Simply open `index.html` in a web browser, or use a local server:
