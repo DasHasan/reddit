@@ -16,3 +16,7 @@ local.properties
 
 # Local Reddit API secret
 secret.txt
+
+# Release signing (keystore lives in ~/.android)
+keystore.properties
+*.jks
