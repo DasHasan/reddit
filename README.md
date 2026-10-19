@@ -1,88 +1,33 @@
-# Reddit Media Viewer
+# Media Viewer
 
-A mobile-first web app that displays Reddit media posts in a vertical scrolling interface.
+A TikTok-style Android app for browsing Reddit media (images, GIFs, videos with sound, galleries) from public subreddits and multireddits in a vertical swipe feed.
 
 ## Features
 
-- 📱 **Mobile-First Design** - Optimized for touch interactions and mobile devices
-- 🎥 **Media Only** - Displays images, videos, and gallery posts (filters out text posts)
-- 👆 **Swipe Navigation** - Vertical swipe up/down to navigate between posts
-- 🎬 **Auto-Playing Videos** - Videos auto-play with smooth transitions
-- 🖼️ **Gallery Support** - Horizontal swipe for gallery posts with arrow navigation
-- 🔗 **Embedded Content** - Support for YouTube, Twitter, and other embeddable links
-- ⛶ **Fullscreen Mode** - Immersive fullscreen viewing with a single click
-- ⚡ **Performance Optimized** - Lazy loading, DOM recycling, no external dependencies
-- 🔄 **Infinite Scroll** - Automatically loads more posts as you browse
-- 🎯 **Any Subreddit** - Enter any subreddit name to browse its media
-- 🔖 **URL State** - Bookmark and share specific subreddits via URL parameters
+- Vertical full-screen feed with swipe paging; horizontal swipe for galleries
+- Images incl. animated GIF/WebP, downsampled to the screen
+- Reddit videos with sound (separate audio track kept in sync), mute toggle
+- Web embeds (YouTube etc.) and link cards
+- Input accepts `pics`, `r/pics+aww`, `user/<name>/m/<multi>`, `u/<name>` or full Reddit URLs
+- Tap to hide/show the overlay, tap `u/…` or `r/…` to open that feed, back returns to the previous feed
 
-## Usage
+## No dependencies
 
-1. Open the app in your browser
-2. Enter a subreddit name (e.g., "pics", "videos", "aww")
-3. Click "Load" or press Enter
-4. Swipe up/down to navigate between posts
-5. For gallery posts:
-   - Swipe left/right to view multiple images
-   - Or use the arrow buttons on the sides
+The app uses only Android platform APIs (`HttpURLConnection`, `org.json`, `ImageDecoder`, `VideoView`/`MediaPlayer`, `WebView`, Android Keystore). The APK contains no libraries besides `kotlin-stdlib`, to keep the supply-chain surface minimal.
 
-**Tip**: You can also load a specific subreddit directly by adding `?r=subreddit` to the URL (e.g., `?r=videos`). The URL updates as you search, so you can bookmark or share specific subreddits.
+## Reddit access
 
-### Keyboard Navigation (Desktop)
+Reddit no longer serves `.json` listings to unauthenticated clients, so the app reads public data through `oauth.reddit.com` with an app-only token (`client_credentials` grant, no user login). It needs the client ID and secret of a Reddit app of type *personal use script* (<https://www.reddit.com/prefs/apps>). Both are entered on first start and stored AES-GCM encrypted with a key that never leaves the Android Keystore.
 
-- ⬆️ Arrow Up - Previous post
-- ⬇️ Arrow Down - Next post
+## Build
 
-## Tech Stack
-
-- Pure Vanilla JavaScript (no frameworks)
-- CSS3 with mobile-first responsive design
-- Reddit JSON API via Cloudflare Worker proxy
-
-## How It Works
-
-The app fetches posts through a Cloudflare Worker proxy that forwards requests to Reddit's public JSON API:
-```
-https://www.reddit.com/r/{subreddit}.json
-```
-
-It filters posts to show only media content:
-- Images (direct links, i.redd.it, imgur, animated GIFs)
-- Videos (Reddit hosted videos, GIFV)
-- Gallery posts (multiple images)
-- Embedded content (YouTube, Twitter, etc.)
-
-The current subreddit is stored in the URL (`?r=subreddit`) so you can bookmark, share, or reload with the same subreddit.
-
-## Performance
-
-- **Lazy Loading** - Images/videos load only when needed
-- **DOM Recycling** - Removes posts that are far from the current view
-- **Minimal Dependencies** - No external libraries, pure vanilla JS
-- **Optimized Transitions** - Hardware-accelerated CSS transforms
-
-## Local Development
-
-Simply open `index.html` in a web browser, or use a local server:
+Requires a JDK and the Android SDK (`ANDROID_HOME`); the Gradle wrapper downloads everything else.
 
 ```bash
-# Using Python
-python -m http.server 8000
-
-# Using Node.js
-npx http-server
-
-# Using PHP
-php -S localhost:8000
+cd android
+./gradlew assembleDebug
+adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
-
-Then visit `http://localhost:8000`
-
-## Browser Support
-
-- Modern mobile browsers (iOS Safari, Chrome, Firefox)
-- Desktop browsers with touch event support
-- Keyboard navigation for desktop testing
 
 ## License
 
