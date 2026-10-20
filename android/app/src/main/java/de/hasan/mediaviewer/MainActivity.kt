@@ -43,6 +43,7 @@ class MainActivity : Activity(), PageHost {
     private lateinit var input: EditText
     private lateinit var muteButton: TextView
     private lateinit var loading: ProgressBar
+    private lateinit var sidebar: MultiSidebar
 
     private val posts = ArrayList<Post>()
     private var path = "pics"
@@ -86,11 +87,11 @@ class MainActivity : Activity(), PageHost {
         topBar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(12), dp(8), dp(8), dp(24))
+            setPadding(dp(4), dp(8), dp(8), dp(24))
             background = scrim(GradientDrawable.Orientation.TOP_BOTTOM)
         }
         input = EditText(this).apply {
-            hint = "Subreddit, r/a+b oder user/x/m/multi"
+            hint = "Subreddit, r/a+b, u/user oder user/x/m/multi"
             setTextColor(Color.WHITE)
             setHintTextColor(0x99FFFFFF.toInt())
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
@@ -101,11 +102,12 @@ class MainActivity : Activity(), PageHost {
             setPadding(dp(16), dp(10), dp(16), dp(10))
             setOnEditorActionListener { _, action, event ->
                 if (action == EditorInfo.IME_ACTION_GO || event?.keyCode == KeyEvent.KEYCODE_ENTER) {
-                    load(text.toString())
+                    submit(text.toString())
                     true
                 } else false
             }
         }
+        topBar.addView(barButton("☰") { openSidebar() })
         topBar.addView(input, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         loading = ProgressBar(this).apply { visibility = View.GONE }
         topBar.addView(loading, LinearLayout.LayoutParams(dp(28), dp(28)).apply { leftMargin = dp(8) })
@@ -113,11 +115,14 @@ class MainActivity : Activity(), PageHost {
         topBar.addView(muteButton)
         topBar.addView(barButton("⚙") { showCredentialsDialog() })
         root.addView(topBar, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP))
+        sidebar = MultiSidebar(this, onUser = { loadMultis(it) }, onPick = { load(it) })
+        root.addView(sidebar, matchParent())
 
         // Keep the bar clear of the camera cutout even though system bars are hidden
         root.setOnApplyWindowInsetsListener { _, insets ->
             val top = insets.getInsetsIgnoringVisibility(WindowInsets.Type.statusBars() or WindowInsets.Type.displayCutout()).top
-            topBar.setPadding(dp(12), top + dp(4), dp(8), dp(24))
+            topBar.setPadding(dp(4), top + dp(4), dp(8), dp(24))
+            sidebar.setTopInset(top)
             insets
         }
         setContentView(root)
@@ -168,6 +173,35 @@ class MainActivity : Activity(), PageHost {
             startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
         } catch (e: ActivityNotFoundException) {
             toast("Keine App zum Öffnen gefunden")
+        }
+    }
+
+    /** Typed input: a bare user opens their multireddits in the sidebar, anything else loads directly. */
+    private fun submit(rawInput: String) {
+        val user = RedditClient.bareUser(RedditClient.normalize(rawInput)) ?: return load(rawInput)
+        input.setText(path)
+        input.clearFocus()
+        getSystemService(InputMethodManager::class.java).hideSoftInputFromWindow(input.windowToken, 0)
+        sidebar.open()
+        loadMultis(user)
+    }
+
+    /** Opens the sidebar, showing the multis of the user looked up last. */
+    private fun openSidebar() {
+        sidebar.open()
+        if (sidebar.user == null) getPreferences(MODE_PRIVATE).getString("multiUser", null)?.let { loadMultis(it) }
+    }
+
+    private fun loadMultis(user: String) {
+        getPreferences(MODE_PRIVATE).edit().putString("multiUser", user).apply()
+        sidebar.showLoading(user)
+        network.execute {
+            val result = runCatching { client.multis(user) }
+            runOnUiThread {
+                if (isDestroyed) return@runOnUiThread
+                result.onSuccess { sidebar.showMultis(user, it) }
+                    .onFailure { sidebar.showError(user, it.message ?: "Fehler beim Laden") }
+            }
         }
     }
 
@@ -272,6 +306,7 @@ class MainActivity : Activity(), PageHost {
     // ---- lifecycle --------------------------------------------------------
 
     private fun goBack() {
+        if (sidebar.isOpen) return sidebar.close()
         val previous = history.removeLastOrNull()
         if (previous != null) load(previous, remember = false) else finish()
     }

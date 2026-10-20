@@ -1,11 +1,15 @@
 package de.hasan.mediaviewer
 
 import android.util.Base64
+import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URLEncoder
 
 data class Listing(val posts: List<Post>, val after: String?, val rawCount: Int)
+
+/** A user's custom feed; [path] is a [RedditClient.normalize]d feed path. */
+data class Multi(val name: String, val path: String, val subredditCount: Int)
 
 /**
  * Reads public Reddit data with an app-only OAuth token (client_credentials grant).
@@ -19,21 +23,39 @@ class RedditClient(private val credentials: () -> Credentials.Pair?) {
     fun listing(apiPath: String, after: String?): Listing {
         val query = StringBuilder("limit=50&raw_json=1")
         if (after != null) query.append("&after=").append(URLEncoder.encode(after, "UTF-8"))
-        val url = "https://oauth.reddit.com$apiPath?$query"
-
-        val json = try {
-            get(url, token())
-        } catch (e: ApiException) {
-            if (e.code != 401) throw e
-            // Token revoked or expired early: fetch a fresh one once
-            token = null
-            get(url, token())
-        }
-
+        val json = get("https://oauth.reddit.com$apiPath?$query")
         val data = json.optJSONObject("data") ?: throw ApiException(0, "Unerwartete Antwort von Reddit")
         val children = data.optJSONArray("children") ?: throw ApiException(0, "Unerwartete Antwort von Reddit")
         val posts = children.objects().mapNotNull { child -> child.optJSONObject("data")?.let { PostParser.parse(it) } }
         return Listing(posts, data.optString("after").takeIf { it.isNotEmpty() && it != "null" }, children.length())
+    }
+
+    /** Public multireddits of [user]; private ones are never returned to an app-only token. */
+    fun multis(user: String): List<Multi> {
+        val body = try {
+            getBody("https://oauth.reddit.com/api/multi/user/${URLEncoder.encode(user, "UTF-8")}?raw_json=1")
+        } catch (e: ApiException) {
+            // Reddit answers 400 USER_DOESNT_EXIST for unknown users
+            throw if (e.code == 400) ApiException(404, "u/$user existiert nicht") else e
+        }
+        return JSONArray(body).objects().mapNotNull { it.optJSONObject("data") }.map {
+            Multi(
+                it.optString("display_name"),
+                it.optString("path").trim('/'),
+                it.optJSONArray("subreddits")?.length() ?: 0,
+            )
+        }
+    }
+
+    private fun get(url: String) = JSONObject(getBody(url))
+
+    private fun getBody(url: String) = try {
+        authorizedGet(url, token())
+    } catch (e: ApiException) {
+        if (e.code != 401) throw e
+        // Token revoked or expired early: fetch a fresh one once
+        token = null
+        authorizedGet(url, token())
     }
 
     @Synchronized
@@ -49,7 +71,7 @@ class RedditClient(private val credentials: () -> Credentials.Pair?) {
             setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
         }
         conn.outputStream.use { it.write("grant_type=client_credentials".toByteArray()) }
-        val json = readJson(conn)
+        val json = JSONObject(read(conn))
         val value = json.optString("access_token").takeIf { it.isNotEmpty() }
             ?: throw ApiException(401, "Reddit hat keinen Token ausgestellt: ${json.optString("error", "unbekannt")}")
 
@@ -59,10 +81,10 @@ class RedditClient(private val credentials: () -> Credentials.Pair?) {
         return value
     }
 
-    private fun get(url: String, token: String) =
-        readJson(Http.open(url).apply { setRequestProperty("Authorization", "bearer $token") })
+    private fun authorizedGet(url: String, token: String) =
+        read(Http.open(url).apply { setRequestProperty("Authorization", "bearer $token") })
 
-    private fun readJson(conn: HttpURLConnection): JSONObject {
+    private fun read(conn: HttpURLConnection): String {
         val body = try {
             Http.read(conn)
         } catch (e: ApiException) {
@@ -74,12 +96,17 @@ class RedditClient(private val credentials: () -> Credentials.Pair?) {
                 else -> "Reddit-Fehler ${e.code}"
             })
         }
-        return JSONObject(String(body))
+        return String(body)
     }
 
     companion object {
         private val MULTI_URL = Regex("""(?:https?://)?(?:www\.|old\.)?reddit\.com/(user/[^/]+/m/[^/?#]+)""", RegexOption.IGNORE_CASE)
         private val SUB_URL = Regex("""(?:https?://)?(?:www\.|old\.)?reddit\.com/r/([^/?#]+)""", RegexOption.IGNORE_CASE)
+
+        private val USER = Regex("""user/([^/]+)""")
+
+        /** User name if [path] names a user without a feed suffix such as /submitted or /m/x. */
+        fun bareUser(path: String) = USER.matchEntire(path)?.groupValues?.get(1)
 
         /** API path for a [normalize]d feed path. */
         fun apiPath(path: String) = if (path.startsWith("user/")) "/$path" else "/r/$path"
