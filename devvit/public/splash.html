@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Media Viewer</title>
+    <link rel="modulepreload" href="splash.js">
+    <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b0b0b;
+      --fg: #fff;
+      --muted: #b0b0b0;
+      --accent: #ff4500;
+    }
+    body {
+      margin: 0;
+      width: 100dvw;
+      height: 100dvh;
+      overflow: hidden;
+      display: grid;
+      place-items: center;
+      background: var(--bg);
+      color: var(--fg);
+      font:
+        15px / 1.4 system-ui,
+        sans-serif;
+    }
+    main {
+      display: grid;
+      gap: 12px;
+      justify-items: center;
+      width: min(320px, calc(100dvw - 32px));
+      text-align: center;
+    }
+    h1 {
+      margin: 0;
+      font-size: 22px;
+    }
+    p {
+      margin: 0;
+      color: var(--muted);
+    }
+    form {
+      display: grid;
+      gap: 10px;
+      width: 100%;
+    }
+    input {
+      padding: 8px 12px;
+      border: 1px solid #555;
+      border-radius: 18px;
+      background: #111;
+      color: var(--fg);
+      font: inherit;
+    }
+    button {
+      padding: 10px;
+      border: 0;
+      border-radius: 18px;
+      background: var(--accent);
+      color: #fff;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Media Viewer</h1>
+      <p>Bilder, GIFs und Videos im Vollbild durchwischen.</p>
+      <form id="start-form">
+        <input
+          id="feed-input"
+          type="text"
+          autocapitalize="off"
+          autocomplete="off"
+          spellcheck="false"
+          aria-label="Feed"
+        >
+        <button id="start-btn" type="button">Starten</button>
+      </form>
+    </main>
+    <script src="splash.js" type="module"></script>
+  </body>
+</html>

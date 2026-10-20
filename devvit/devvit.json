@@ -1,0 +1,38 @@
+{
+  "$schema": "https://developers.reddit.com/schema/config-file.v1.json",
+  "name": "mediaswipe-proto",
+  "post": {
+    "entrypoints": {
+      "default": {
+        "entry": "splash.html",
+        "height": "regular"
+      },
+      "viewer": {
+        "entry": "viewer.html"
+      }
+    }
+  },
+  "server": {},
+  "permissions": {
+    "reddit": true
+  },
+  "menu": {
+    "items": [
+      {
+        "label": "[Media Viewer] New Post",
+        "description": "Create a new Media Viewer post.",
+        "location": "subreddit",
+        "endpoint": "/internal/on/menu/new-post"
+      }
+    ]
+  },
+  "triggers": {
+    "onAppInstall": "/internal/on/app/install"
+  },
+  "scripts": {
+    "dev": "npm run watch"
+  },
+  "dev": {
+    "subreddit": "mediaswipe_proto_dev"
+  }
+}

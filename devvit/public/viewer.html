@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8">
+    <meta
+      name="viewport"
+      content="width=device-width, maximum-scale=1, minimum-scale=1, user-scalable=no"
+    >
+    <title>Media Viewer</title>
+    <link rel="modulepreload" href="viewer.js">
+    <style>
+    :root {
+      color-scheme: dark;
+      --bg: #000;
+      --fg: #fff;
+      --muted: #c8c8c8;
+      --bar: rgb(0 0 0 / 0.55);
+      --accent: #ff4500;
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      width: 100dvw;
+      height: 100dvh;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--fg);
+      font:
+        15px / 1.35 system-ui,
+        sans-serif;
+    }
+    button {
+      font: inherit;
+      color: inherit;
+      background: none;
+      border: 0;
+      padding: 0;
+      cursor: pointer;
+    }
+    #bar {
+      position: fixed;
+      inset: 0 0 auto;
+      z-index: 2;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      padding: 8px 12px;
+      background: var(--bar);
+      transition: opacity 0.2s;
+    }
+    #feed-form {
+      flex: 1;
+      min-width: 0;
+    }
+    #feed-input {
+      width: 100%;
+      padding: 6px 10px;
+      border: 1px solid #555;
+      border-radius: 16px;
+      background: #111;
+      color: var(--fg);
+      font: inherit;
+    }
+    #feed {
+      height: 100dvh;
+      overflow-y: scroll;
+      scroll-snap-type: y mandatory;
+      overscroll-behavior: contain;
+      scrollbar-width: none;
+    }
+    .page {
+      position: relative;
+      height: 100dvh;
+      scroll-snap-align: start;
+      scroll-snap-stop: always;
+      overflow: hidden;
+    }
+    .media,
+    .fill {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+    img.fill,
+    video.fill {
+      object-fit: contain;
+    }
+    iframe.fill {
+      border: 0;
+      background: #000;
+    }
+    .gallery {
+      display: flex;
+      height: 100%;
+      overflow-x: scroll;
+      scroll-snap-type: x mandatory;
+      scrollbar-width: none;
+    }
+    .gallery .cell {
+      position: relative;
+      flex: 0 0 100%;
+      scroll-snap-align: start;
+    }
+    .counter,
+    .status {
+      position: absolute;
+      padding: 2px 8px;
+      border-radius: 10px;
+      background: var(--bar);
+      font-size: 12px;
+    }
+    .counter {
+      top: 56px;
+      right: 12px;
+    }
+    .status {
+      top: 56px;
+      left: 12px;
+      color: var(--muted);
+    }
+    .embed .open,
+    .link .open {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      padding: 10px 16px;
+      border-radius: 20px;
+      background: var(--accent);
+      font-weight: 600;
+    }
+    .link p {
+      position: absolute;
+      inset: auto 0 45%;
+      text-align: center;
+      color: var(--muted);
+    }
+    .info {
+      position: absolute;
+      inset: auto 0 0;
+      padding: 48px 16px 20px;
+      background: linear-gradient(transparent, rgb(0 0 0 / 0.8));
+      transition: opacity 0.2s;
+    }
+    .info .title {
+      margin: 0 0 6px;
+      font-weight: 600;
+    }
+    .info .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .info .meta button {
+      color: var(--fg);
+    }
+    body.hide-info .info,
+    body.hide-info #bar,
+    body.hide-info .status,
+    body.hide-info .counter {
+      opacity: 0;
+      pointer-events: none;
+    }
+    #bar button {
+      font-size: 20px;
+      min-width: 32px;
+    }
+    #message {
+      position: fixed;
+      inset: 45% 16px auto;
+      text-align: center;
+      color: var(--muted);
+    }
+    #diag {
+      position: fixed;
+      inset: 52px 8px auto;
+      z-index: 3;
+      max-height: 60dvh;
+      overflow: auto;
+      margin: 0;
+      padding: 10px;
+      border-radius: 8px;
+      background: rgb(20 20 20 / 0.95);
+      font:
+        11px / 1.4 ui-monospace,
+        monospace;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    </style>
+  </head>
+  <body>
+    <header id="bar">
+      <button id="back-btn" type="button" aria-label="Zurück" hidden>←</button>
+      <form id="feed-form">
+        <input
+          id="feed-input"
+          type="text"
+          enterkeyhint="go"
+          autocapitalize="off"
+          autocomplete="off"
+          spellcheck="false"
+          aria-label="Feed"
+        >
+      </form>
+      <button id="mute-btn" type="button" aria-label="Ton">🔊</button>
+      <button id="diag-btn" type="button" aria-label="Diagnose">ⓘ</button>
+    </header>
+    <main id="feed"></main>
+    <p id="message" hidden></p>
+    <pre id="diag" hidden></pre>
+    <script src="viewer.js" type="module"></script>
+  </body>
+</html>
