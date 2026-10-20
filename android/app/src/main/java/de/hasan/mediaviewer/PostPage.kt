@@ -2,6 +2,7 @@ package de.hasan.mediaviewer
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.icu.text.CompactDecimalFormat
@@ -21,6 +22,7 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
+import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.VideoView
 import java.util.Locale
@@ -49,6 +51,8 @@ class PostPage(context: Context, private val host: PageHost, post: Post) : SnapP
     override val view = FrameLayout(context)
     private val content: Item
     private val overlays = mutableListOf<View>()
+    // Holds the controls of whichever video of this post is playing (also inside galleries)
+    private val controlsSlot = FrameLayout(context)
 
     init {
         view.setBackgroundColor(Color.BLACK)
@@ -133,7 +137,46 @@ class PostPage(context: Context, private val host: PageHost, post: Post) : SnapP
         private var audio: SeparateAudio? = null
         private var sourceIndex = 0
         private var active = false
+        private var userPaused = false
+        private var seeking = false
         private var focus: AudioFocusRequest? = null
+
+        private val playButton = TextView(frame.context).apply {
+            setTextColor(Color.WHITE)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
+            setPadding(0, context.dp(4), context.dp(12), context.dp(4))
+            setOnClickListener { togglePlay() }
+        }
+        private val time = TextView(frame.context).apply {
+            setTextColor(0xFFDDDDDD.toInt())
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+        }
+        private val seekBar = SeekBar(frame.context).apply {
+            progressTintList = ColorStateList.valueOf(0xFFFFB38A.toInt())
+            thumbTintList = ColorStateList.valueOf(0xFFFFB38A.toInt())
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(bar: SeekBar, progress: Int, fromUser: Boolean) {
+                    if (fromUser) time.text = timeText(progress, bar.max)
+                }
+
+                override fun onStartTrackingTouch(bar: SeekBar) {
+                    seeking = true
+                }
+
+                override fun onStopTrackingTouch(bar: SeekBar) {
+                    seeking = false
+                    seekTo(bar.progress)
+                }
+            })
+        }
+        private val controls = LinearLayout(frame.context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, context.dp(6), 0, 0)
+            addView(playButton)
+            addView(seekBar, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(time)
+        }
 
         // VideoView has no loop callback, so the audio is re-synced on a timer
         private val followVideo = object : Runnable {
@@ -142,6 +185,21 @@ class PostPage(context: Context, private val host: PageHost, post: Post) : SnapP
                 if (!active) return
                 audio?.follow(v.currentPosition, v.isPlaying)
                 frame.postDelayed(this, 1000)
+            }
+        }
+
+        private val updateProgress = object : Runnable {
+            override fun run() {
+                val v = video ?: return
+                if (!active) return
+                // -1 until prepared
+                val duration = v.duration
+                if (duration > 0 && !seeking) {
+                    seekBar.max = duration
+                    seekBar.progress = v.currentPosition
+                    time.text = timeText(v.currentPosition, duration)
+                }
+                frame.postDelayed(this, 250)
             }
         }
 
@@ -158,7 +216,7 @@ class PostPage(context: Context, private val host: PageHost, post: Post) : SnapP
                 // The video file has no sound of its own; audio comes from SeparateAudio
                 mp.setVolume(0f, 0f)
                 frame.removeView(spinner)
-                if (active) {
+                if (active && !userPaused) {
                     view.start()
                     syncNow()
                 } else {
@@ -194,9 +252,16 @@ class PostPage(context: Context, private val host: PageHost, post: Post) : SnapP
         override fun activate() {
             if (active) return
             active = true
+            userPaused = false
             preload()
             // Before preparation finishes this only marks the video to start once prepared
             video?.start()
+            updatePlayButton()
+            time.text = ""
+            seekBar.progress = 0
+            controlsSlot.removeAllViews()
+            controlsSlot.addView(controls)
+            frame.post(updateProgress)
             if (media.audio.isNotEmpty()) {
                 val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN).build()
                 frame.context.getSystemService(AudioManager::class.java).requestAudioFocus(request)
@@ -214,6 +279,8 @@ class PostPage(context: Context, private val host: PageHost, post: Post) : SnapP
             if (!active) return
             active = false
             frame.removeCallbacks(followVideo)
+            frame.removeCallbacks(updateProgress)
+            controlsSlot.removeView(controls)
             video?.pause()
             audio?.follow(0, videoPlaying = false)
             focus?.let { frame.context.getSystemService(AudioManager::class.java).abandonAudioFocusRequest(it) }
@@ -231,6 +298,25 @@ class PostPage(context: Context, private val host: PageHost, post: Post) : SnapP
             poster.visibility = View.VISIBLE
             video = null
             spinner = null
+        }
+
+        private fun togglePlay() {
+            val v = video ?: return
+            userPaused = !userPaused
+            if (userPaused) v.pause() else v.start()
+            updatePlayButton()
+            syncNow()
+        }
+
+        private fun updatePlayButton() {
+            // U+FE0E asks for the plain glyph instead of an emoji
+            playButton.text = if (userPaused) "▶︎" else "⏸︎"
+        }
+
+        private fun seekTo(ms: Int) {
+            val v = video ?: return
+            v.seekTo(ms)
+            audio?.follow(ms, v.isPlaying)
         }
 
         override fun applyMute() {
@@ -336,6 +422,7 @@ class PostPage(context: Context, private val host: PageHost, post: Post) : SnapP
         meta.addView(metaText("r/${post.subreddit}") { host.openPath(post.subreddit) })
         meta.addView(metaText("↗") { host.openUrl("https://www.reddit.com${post.permalink}") })
         info.addView(meta)
+        info.addView(controlsSlot)
 
         view.addView(info, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM))
         overlays += info
@@ -350,6 +437,10 @@ class PostPage(context: Context, private val host: PageHost, post: Post) : SnapP
         ellipsize = TextUtils.TruncateAt.END
         if (onClick != null) setOnClickListener { onClick() }
     }
+
+    private fun timeText(positionMs: Int, durationMs: Int) = "${clock(positionMs)} / ${clock(durationMs)}"
+
+    private fun clock(ms: Int) = String.format(Locale.ROOT, "%d:%02d", ms / 60000, ms / 1000 % 60)
 
     private fun spinner() = ProgressBar(view.context).apply { isIndeterminate = true }
 
