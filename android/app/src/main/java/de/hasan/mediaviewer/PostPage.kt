@@ -349,7 +349,21 @@ class PostPage(context: Context, private val host: PageHost, post: Post) : SnapP
             topMargin = view.context.dp(96)
             rightMargin = view.context.dp(16)
         })
-        if (media.items.size > 1) overlays += counter
+        if (media.items.size > 1) {
+            overlays += counter
+            // Left side, so the next image is reachable one-handed without swiping
+            val buttons = LinearLayout(view.context).apply {
+                orientation = LinearLayout.VERTICAL
+                addView(galleryButton("‹") { pager.step(-1) })
+                addView(galleryButton("›") { pager.step(1) }.apply {
+                    (layoutParams as LinearLayout.LayoutParams).topMargin = context.dp(12)
+                })
+            }
+            frame.addView(buttons, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.START or Gravity.CENTER_VERTICAL).apply {
+                leftMargin = view.context.dp(12)
+            })
+            overlays += buttons
+        }
         pager.dataChanged()
 
         // The gallery's own pager decides which slide is active while the post is
@@ -436,6 +450,16 @@ class PostPage(context: Context, private val host: PageHost, post: Post) : SnapP
         maxLines = 1
         ellipsize = TextUtils.TruncateAt.END
         if (onClick != null) setOnClickListener { onClick() }
+    }
+
+    private fun galleryButton(label: String, onClick: () -> Unit) = TextView(view.context).apply {
+        text = label
+        gravity = Gravity.CENTER
+        setTextColor(Color.WHITE)
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, 30f)
+        background = context.roundedRect(0x99000000.toInt(), 28)
+        layoutParams = LinearLayout.LayoutParams(context.dp(56), context.dp(56))
+        setOnClickListener { onClick() }
     }
 
     private fun timeText(positionMs: Int, durationMs: Int) = "${clock(positionMs)} / ${clock(durationMs)}"

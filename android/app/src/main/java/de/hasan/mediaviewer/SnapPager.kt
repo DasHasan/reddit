@@ -76,6 +76,12 @@ class SnapPager<T : SnapPager.Page>(context: Context, private val vertical: Bool
     /** Call after items were appended so the next neighbour gets created. */
     fun dataChanged() = sync()
 
+    /** Animates one page forward ([delta] = 1) or back (-1), e.g. from a button. */
+    fun step(delta: Int) {
+        if (current + delta !in 0 until count || animator?.isRunning == true) return
+        settle(delta)
+    }
+
     /** Drops all pages and starts again at the first item. */
     fun reset() {
         clear()
