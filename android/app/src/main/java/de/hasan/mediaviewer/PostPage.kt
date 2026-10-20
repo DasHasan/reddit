@@ -5,6 +5,7 @@ import android.content.Context
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.icu.text.CompactDecimalFormat
+import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.media.MediaPlayer
 import android.net.Uri
@@ -36,6 +37,7 @@ interface PageHost {
 
 /** Something that only runs while its page is the visible one (video, web embed, gallery). */
 interface Playable {
+    fun preload() {}
     fun activate()
     fun deactivate()
     fun applyMute() {}
@@ -60,6 +62,7 @@ class PostPage(context: Context, private val host: PageHost, post: Post) : SnapP
         }
     }
 
+    override fun preload() = content.preload()
     override fun activate() = content.activate()
     override fun deactivate() = content.deactivate()
     override fun release() = content.release()
@@ -68,6 +71,10 @@ class PostPage(context: Context, private val host: PageHost, post: Post) : SnapP
 
     /** A media view plus whatever has to be started, stopped or cancelled with it. */
     private inner class Item(override val view: FrameLayout, private val image: ImageView?, private val playable: Playable?) : SnapPager.Page {
+        override fun preload() {
+            playable?.preload()
+        }
+
         override fun activate() {
             playable?.activate()
         }
@@ -116,34 +123,48 @@ class PostPage(context: Context, private val host: PageHost, post: Post) : SnapP
         return Item(frame, image, playable?.invoke(frame, image))
     }
 
+    /**
+     * Prepared ahead of time by [preload] so it starts right away when its page
+     * becomes current; [deactivate] only pauses, [release] frees the players.
+     */
     private inner class VideoPlayable(private val frame: FrameLayout, private val poster: ImageView, private val media: Media.Video) : Playable {
         private var video: VideoView? = null
         private var spinner: View? = null
         private var audio: SeparateAudio? = null
         private var sourceIndex = 0
+        private var active = false
+        private var focus: AudioFocusRequest? = null
 
         // VideoView has no loop callback, so the audio is re-synced on a timer
         private val followVideo = object : Runnable {
             override fun run() {
                 val v = video ?: return
+                if (!active) return
                 audio?.follow(v.currentPosition, v.isPlaying)
                 frame.postDelayed(this, 1000)
             }
         }
 
-        override fun activate() {
+        override fun preload() {
             if (video != null) return
             sourceIndex = 0
             val spinner = spinner().also { this.spinner = it }
             val view = VideoView(frame.context)
-            // Silent loops must not pause music the user is listening to
-            if (media.audio.isEmpty()) view.setAudioFocusRequest(AudioManager.AUDIOFOCUS_NONE)
+            // The file is silent and preloading must not pause the user's music;
+            // focus is requested in activate() if there is separate audio
+            view.setAudioFocusRequest(AudioManager.AUDIOFOCUS_NONE)
             view.setOnPreparedListener { mp ->
                 mp.isLooping = true
                 // The video file has no sound of its own; audio comes from SeparateAudio
                 mp.setVolume(0f, 0f)
-                view.start()
-                syncNow()
+                frame.removeView(spinner)
+                if (active) {
+                    view.start()
+                    syncNow()
+                } else {
+                    // Shows the first frame instead of an empty surface while swiping in
+                    mp.seekTo(0)
+                }
             }
             view.setOnInfoListener { _, what, _ ->
                 if (what == MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START) {
@@ -168,7 +189,20 @@ class PostPage(context: Context, private val host: PageHost, post: Post) : SnapP
             if (media.audio.isNotEmpty()) {
                 audio = SeparateAudio(media.audio, ::syncNow).also { it.volume = volume() }
             }
-            frame.postDelayed(followVideo, 1000)
+        }
+
+        override fun activate() {
+            if (active) return
+            active = true
+            preload()
+            // Before preparation finishes this only marks the video to start once prepared
+            video?.start()
+            if (media.audio.isNotEmpty()) {
+                val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN).build()
+                frame.context.getSystemService(AudioManager::class.java).requestAudioFocus(request)
+                focus = request
+            }
+            syncNow()
         }
 
         private fun syncNow() {
@@ -177,8 +211,18 @@ class PostPage(context: Context, private val host: PageHost, post: Post) : SnapP
         }
 
         override fun deactivate() {
-            val view = video ?: return
+            if (!active) return
+            active = false
             frame.removeCallbacks(followVideo)
+            video?.pause()
+            audio?.follow(0, videoPlaying = false)
+            focus?.let { frame.context.getSystemService(AudioManager::class.java).abandonAudioFocusRequest(it) }
+            focus = null
+        }
+
+        override fun release() {
+            deactivate()
+            val view = video ?: return
             audio?.release()
             audio = null
             view.stopPlayback()
@@ -224,6 +268,7 @@ class PostPage(context: Context, private val host: PageHost, post: Post) : SnapP
 
         // The gallery's own pager decides which slide is active while the post is
         return Item(frame, null, object : Playable {
+            override fun preload() = pager.preloadCurrent()
             override fun activate() = pager.resume()
             override fun deactivate() = pager.pause()
             override fun applyMute() = pager.livePages.forEach { it.applyMute() }

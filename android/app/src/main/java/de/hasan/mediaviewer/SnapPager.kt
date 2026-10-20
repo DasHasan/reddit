@@ -27,6 +27,8 @@ class SnapPager<T : SnapPager.Page>(context: Context, private val vertical: Bool
         val view: View
         fun activate() {}
         fun deactivate() {}
+        /** Gets ready to be activated soon (e.g. buffers a video) without starting. */
+        fun preload() {}
         /** Frees resources; also stops the page if it is still active. */
         fun release() {}
     }
@@ -113,7 +115,14 @@ class SnapPager<T : SnapPager.Page>(context: Context, private val vertical: Bool
         updateActive()
     }
 
+    /** Lets the current page get ready while the pager itself is not resumed (gallery inside a neighbour). */
+    fun preloadCurrent() {
+        pages[current]?.preload()
+    }
+
     private fun updateActive() {
+        // The next page is the likely one to become current, so it starts loading now
+        if (resumed) pages[current + 1]?.preload()
         val target = if (resumed) pages[current] else null
         if (target === activePage) return
         activePage?.deactivate()
